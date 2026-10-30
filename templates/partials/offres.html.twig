@@ -1,0 +1,100 @@
+{# Partial : offres détectées pour une recherche donnée #}
+{# Attend : recherche = { query, ville, rayon, liens, offres, source_locale, erreur_locale } #}
+{# Optionnel : show_form (bouton/ville/rayon pour relancer) #}
+{% if recherche is defined and recherche.query|default('') != '' %}
+<section class="offres-section card">
+    <div class="results-head">
+        <span class="eyebrow">🔎 OFFRES DÉTECTÉES</span>
+        <h2 style="font-size:20px;margin-top:14px">Les offres qui correspondent à votre profil</h2>
+        <p style="font-size:13.5px;color:var(--muted);margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px">
+            <span class="badge" style="background:var(--accent-soft);color:var(--accent);font-weight:750">Requête : {{ recherche.query }}</span>
+            {% if recherche.ville %}<span class="badge" style="background:var(--success-soft);color:var(--success);font-weight:750">📍 {{ recherche.ville }} {% if recherche.rayon %}· {{ recherche.rayon }} km{% endif %}</span>{% endif %}
+        </p>
+    </div>
+
+    {% if show_form is not defined or show_form %}
+        <form class="offer-search-form" method="get" action="{{ path('app_offer_search') }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:14px;border:1px dashed var(--border-strong);border-radius:14px;margin-bottom:20px;background:var(--surface-3)">
+            <input type="hidden" name="q" value="{{ recherche.query }}">
+            <div class="form-group" style="margin:0;flex:1;min-width:200px">
+                <label for="offre-ville">Autour de la ville</label>
+                <input type="text" id="offre-ville" name="ville" value="{{ recherche.ville|default('') }}" placeholder="Ex : Lyon, Paris, Nantes…">
+            </div>
+            <div class="form-group" style="margin:0;min-width:130px">
+                <label for="offre-rayon">Rayon</label>
+                <select id="offre-rayon" name="rayon">
+                    {% for r in [10, 30, 50, 100] %}
+                        <option value="{{ r }}" {{ recherche.rayon is defined and recherche.rayon == r ? 'selected' }}>{{ r }} km</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">🔄 Mettre à jour</button>
+        </form>
+    {% endif %}
+
+    {% if recherche.source_locale %}
+        <p style="font-size:13px;color:var(--text-2);margin:0 0 16px">
+            🏢 Offres <strong>locales</strong> ({{ recherche.source_locale }}) et <strong>à distance</strong>, triées par proximité.
+        </p>
+    {% elseif recherche.erreur_locale %}
+        <div class="alert alert-danger" style="font-size:13px">
+            ⚠️ Offres locales indisponibles : {{ recherche.erreur_locale }}
+        </div>
+    {% else %}
+        <div class="alert alert-success" style="font-size:13px">
+            💡 Pour afficher les <strong>offres près de chez vous</strong>, connectez gratuitement l’API France Travail :
+            créez votre compte sur <a href="https://francetravail.io" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:750">francetravail.io</a>, puis renseignez
+            <code style="background:var(--surface);padding:2px 6px;border-radius:6px">FRANCE_TRAVAIL_CLIENT_ID</code> et
+            <code style="background:var(--surface);padding:2px 6px;border-radius:6px">FRANCE_TRAVAIL_CLIENT_SECRET</code> dans votre fichier <code style="background:var(--surface);padding:2px 6px;border-radius:6px">.env</code>.
+            En attendant, utilisez les liens ci-dessous.
+        </div>
+    {% endif %}
+
+    {% if recherche.offres|default([]) is not empty %}
+        <div class="offres-grid">
+            {% for offre in recherche.offres %}
+                <article class="offre-card card">
+                    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+                        <span class="offre-source" style="
+                            {% if offre.source == 'France Travail' %}background:var(--info-soft);color:var(--info){% else %}background:var(--accent-soft);color:var(--accent){% endif %}
+                        ">{{ offre.source }}</span>
+                        {% if offre.type %}<span style="font-size:11.5px;color:var(--muted)">{{ offre.type }}</span>{% endif %}
+                    </div>
+                    <div class="offre-title">{{ offre.title }}</div>
+                    {% if offre.company %}<div class="offre-company">{{ offre.company }}</div>{% endif %}
+                    <div class="offre-meta">
+                        {% if offre.location %}<span>📍 {{ offre.location }}</span>{% endif %}
+                        {% if offre.salary %}<span>💰 {{ offre.salary }}</span>{% endif %}
+                        {% if offre.date %}<span>📅 {{ offre.date|slice(0, 10) }}</span>{% endif %}
+                    </div>
+                    {% if offre.description %}<div class="offre-desc">{{ offre.description }}</div>{% endif %}
+                    <a class="offre-link" href="{{ offre.url }}" target="_blank" rel="noopener noreferrer">
+                        Voir l’offre ⇗
+                    </a>
+                </article>
+            {% endfor %}
+        </div>
+        {% if recherche.source_locale %}
+            <p style="font-size:12px;color:var(--muted);margin-top:14px">
+                Offres France Travail (licence de réutilisation : contenu fourni par France Travail) et offres distantes (API publique), filtrées par mots-clés.
+            </p>
+        {% endif %}
+    {% else %}
+        <div class="empty" style="padding:24px 8px">
+            <span class="empty-icon">🪐</span>
+            Aucune offre correspondante trouvée pour ces mots-clés
+            {% if recherche.ville %}autour de {{ recherche.ville }}{% endif %}.
+            <br>Élargissez le rayon ou utilisez les liens ci-dessous.
+        </div>
+    {% endif %}
+
+    <div class="link-chips" style="margin-top:20px">
+        {% for lien in recherche.liens|default([]) %}
+            {% if lien.url %}
+                <a class="link-chip" href="{{ lien.url }}" target="_blank" rel="noopener noreferrer">
+                    {{ lien.name }} ⇗
+                </a>
+            {% endif %}
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

@@ -1,0 +1,226 @@
+{% extends 'base.html.twig' %}
+{% set active = 'candidatures' %}
+{% set activeSection = 'suivi' %}
+
+{% block title %}Mes candidatures — JobPilot{% endblock %}
+
+{% block styles %}
+.stats { grid-template-columns: repeat(4, 1fr); }
+.relances { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 26px; }
+@media (max-width: 760px) { .relances { grid-template-columns: 1fr; } }
+.relance-list { list-style: none; margin: 0; padding: 0; }
+.relance-list li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.relance-list li:last-child { border-bottom: 0; }
+.relance-list a { color: var(--accent); font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+.relance-list small { color: var(--muted); }
+.tag-retard { color: var(--danger); background: var(--danger-soft); padding: 3px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 750; white-space: nowrap; }
+.tag-proche { color: var(--warn); background: var(--warn-soft); padding: 3px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 750; white-space: nowrap; }
+
+.kanban { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 1180px) { .kanban { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .kanban { grid-template-columns: 1fr; } }
+.kanban-col { background: var(--surface-2); border-radius: 16px; padding: 12px; min-height: 120px; }
+.kanban-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 2px 4px; }
+.kanban-head span { font-size: 13px; font-weight: 800; color: var(--text); }
+.count { background: var(--surface); border-radius: 10px; padding: 2px 9px; font-size: 12px; font-weight: 800; color: var(--text-2); }
+
+.candidature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 13px; margin-bottom: 10px; box-shadow: var(--shadow); }
+.candidature-card h3 { margin: 0 0 2px; font-size: 14.5px; }
+.candidature-card .company { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+.candidature-card .meta { color: var(--muted); font-size: 12px; margin: 7px 0 10px; line-height: 1.6; }
+.candidature-card .meta span { display: block; }
+.card-actions { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.status-select { font: inherit; font-size: 12px; padding: 6px 8px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.card-links { display: flex; gap: 10px; align-items: center; }
+.card-links a { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+.card-links form { display: inline; }
+.card-links .delete { color: var(--danger); }
+.card-links .delete:hover { color: var(--danger); }
+.relance-note { display: inline-block; margin-top: 7px; font-size: 11.5px; font-weight: 750; padding: 3px 9px; border-radius: 20px; }
+.relance-note.late { color: var(--danger); background: var(--danger-soft); }
+.relance-note.soon { color: var(--warn); background: var(--warn-soft); }
+.relance-note.pending { color: var(--text-2); background: var(--surface-2); }
+.competences-note { margin: 8px 0 2px; font-size: 12px; color: var(--text-2); line-height: 1.7; }
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">📋 SUIVI DE CANDIDATURES</span>
+    <h1>Votre tableau de bord candidatures</h1>
+    <p class="muted">
+        {{ total }} candidature{{ total > 1 ? 's' : '' }} suivie{{ total > 1 ? 's' : '' }}.
+        Ajoutez une offre, faites-la évoluer et planifiez vos relances.
+    </p>
+    <div style="margin-top:18px">
+        <a class="btn btn-primary" href="{{ path('app_candidature_new') }}">＋ Nouvelle candidature</a>
+    </div>
+</div>
+
+{% include 'candidature/_tabs.html.twig' %}
+
+{% if total == 0 %}
+    <div class="card empty">
+        <span class="empty-icon">📭</span>
+        Aucune candidature pour le moment.<br>
+        <a class="btn btn-primary" style="margin-top:16px" href="{{ path('app_candidature_new') }}">
+            Ajouter ma première offre
+        </a>
+    </div>
+{% else %}
+    <div class="stats">
+        <div class="card stat">
+            <div class="stat-icon">🗃️</div>
+            <div><strong>{{ total }}</strong><span>candidatures</span></div>
+        </div>
+        <div class="card stat">
+            <div class="stat-icon">⏳</div>
+            <div>
+                <strong>{{ groups['a_postuler']|length + groups['candidature_envoyee']|length }}</strong>
+                <span>en cours de suivi</span>
+            </div>
+        </div>
+        <div class="card stat">
+            <div class="stat-icon">🗣️</div>
+            <div><strong>{{ groups['entretien']|length }}</strong><span>en entretien</span></div>
+        </div>
+        <div class="card stat">
+            <div class="stat-icon">🎉</div>
+            <div><strong>{{ groups['accepte']|length }}</strong><span>acceptées</span></div>
+        </div>
+    </div>
+
+    {% set nbRelances = relances.retard|length + relances.proche|length %}
+    {% if nbRelances > 0 %}
+        <div class="relances">
+            <div class="card">
+                <h2 style="font-size:17px">⚠️ Relances en retard</h2>
+                {% if relances.retard is empty %}
+                    <p class="muted" style="font-size:13px;margin:0">Aucune relance en retard. 🎉</p>
+                {% else %}
+                    <ul class="relance-list">
+                        {% for item in relances.retard %}
+                            <li>
+                                <div>
+                                    <strong>{{ item.poste }}</strong> — {{ item.entreprise }}<br>
+                                    <small>Relance prévue le {{ item.date_relance|date('d/m/Y') }}</small>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px">
+                                    <span class="tag-retard">{{ item._jours_relance * -1 }} j de retard</span>
+                                    <a href="{{ path('app_candidature_edit', {id: item.id}) }}">→</a>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            <div class="card">
+                <h2 style="font-size:17px">📅 Relances à venir (7 j)</h2>
+                {% if relances.proche is empty %}
+                    <p class="muted" style="font-size:13px;margin:0">Aucune relance prévue sous 7 jours.</p>
+                {% else %}
+                    <ul class="relance-list">
+                        {% for item in relances.proche %}
+                            <li>
+                                <div>
+                                    <strong>{{ item.poste }}</strong> — {{ item.entreprise }}<br>
+                                    <small>Relance prévue le {{ item.date_relance|date('d/m/Y') }}</small>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:8px">
+                                    <span class="tag-proche">J-{{ item._jours_relance }}</span>
+                                    <a href="{{ path('app_candidature_edit', {id: item.id}) }}">→</a>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="kanban">
+        {% for code, meta in statuses %}
+            {% set liste = groups[code] %}
+            <div class="kanban-col" style="border-top:3px solid {{ meta.color }}">
+                <div class="kanban-head">
+                    <span>{{ meta.icon }} {{ meta.label }}</span>
+                    <span class="count">{{ liste|length }}</span>
+                </div>
+                {% for item in liste %}
+                    {% set content = item.date_candidature is defined and item.date_candidature is not empty ? '· Candidature : ' ~ item.date_candidature|date('d/m/Y') ~ ' · ' : '' %}
+                    <article class="candidature-card">
+                        <h3>{{ item.poste }}</h3>
+                        <div class="company">{{ item.entreprise }}</div>
+                        <div class="meta">
+                            {% if item.lieu %}<span>📍 {{ item.lieu }}</span>{% endif %}
+                            {% if item.type_contrat %}<span>🧾 {{ item.type_contrat }}{{ item.salaire ? ' · ' ~ item.salaire }}</span>{% endif %}
+                            {% if content is not empty %}<span>{{ content }}</span>{% endif %}
+                        </div>
+
+                        {% if item.date_relance is defined and item.date_relance is not empty %}
+                            {% set relToday = date('today') %}
+                            {% set relDate = date(item.date_relance) %}
+                            <div>
+                                {% if relDate < relToday %}
+                                    <span class="relance-note late">⏰ Relance en retard ({{ item.date_relance|date('d/m/Y') }})</span>
+                                {% elseif relDate.diff(relToday).days <= 7 %}
+                                    <span class="relance-note soon">📅 Relance le {{ item.date_relance|date('d/m/Y') }}</span>
+                                {% else %}
+                                    <span class="relance-note pending">📅 Relance le {{ item.date_relance|date('d/m/Y') }}</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        {% if item.competences %}
+                            <div class="competences-note">
+                                🔑 {{ item.competences }}
+                            </div>
+                        {% endif %}
+
+                        <div class="card-actions">
+                            <select class="status-select" data-id="{{ item.id }}" aria-label="Statut">
+                                {% for scode, smeta in statuses %}
+                                    <option value="{{ scode }}" {{ code == scode ? 'selected' }}>{{ smeta.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="card-links">
+                                <a href="{{ path('app_candidature_edit', {id: item.id}) }}">✏️</a>
+                                <form method="post" action="{{ path('app_candidature_delete', {id: item.id}) }}"
+                                      onsubmit="return confirm('Supprimer cette candidature ?')">
+                                    <button type="submit" class="delete" title="Supprimer" style="background:none;border:0;cursor:pointer;font-size:13px;font-weight:700">🗑️</button>
+                                </form>
+                            </div>
+                        </div>
+                    </article>
+                {% else %}
+                    <div class="empty" style="padding:18px 8px">—</div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+    document.querySelectorAll('.status-select').forEach(function (select) {
+        select.addEventListener('change', function () {
+            const id = this.dataset.id;
+            const statut = this.value;
+
+            fetch('{{ path('app_candidature_statut', {id: '__ID__'}) }}'.replace('__ID__', id), {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: new URLSearchParams({ statut: statut })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === 'success') {
+                    window.location.reload();
+                }
+            })
+            .catch(function () { window.location.reload(); });
+        });
+    });
+</script>
+{% endblock %}

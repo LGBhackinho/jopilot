@@ -1,0 +1,126 @@
+{% extends 'base.html.twig' %}
+{% set active = 'candidatures' %}
+
+{% block title %}{{ mode == 'new' ? 'Nouvelle candidature' : 'Modifier la candidature' }} — JobPilot{% endblock %}
+
+{% block styles %}
+.layout { display: grid; grid-template-columns: 1fr .6fr; gap: 22px; align-items: start; }
+@media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+.tip { font-size: 14px; line-height: 1.8; color: var(--text-2); }
+.tip b { color: var(--accent); }
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">📋 {{ mode == 'new' ? 'NOUVELLE CANDIDATURE' : 'MODIFICATION' }}</span>
+    <h1>{{ mode == 'new' ? 'Ajouter une offre' : 'Modifier la candidature' }}</h1>
+    <p class="muted">
+        <a href="{{ path('app_candidature_index') }}">← Retour au suivi</a>
+    </p>
+</div>
+
+<div class="layout">
+    <form class="card" method="post">
+        <div class="grid-2" style="margin-bottom:4px">
+            <div class="form-group">
+                <label for="poste">Intitulé du poste *</label>
+                <input type="text" id="poste" name="poste" required
+                       value="{{ candidature.poste ?? '' }}" placeholder="Ex : Développeur PHP / Symfony">
+                {% if erreurs.poste is defined %}<div class="form-error">{{ erreurs.poste }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="entreprise">Entreprise *</label>
+                <input type="text" id="entreprise" name="entreprise" required
+                       value="{{ candidature.entreprise ?? '' }}" placeholder="Ex : ACME">
+                {% if erreurs.entreprise is defined %}<div class="form-error">{{ erreurs.entreprise }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="url">Lien de l’offre</label>
+            <input type="url" id="url" name="url" value="{{ candidature.url ?? '' }}"
+                   placeholder="https://…">
+        </div>
+
+        <div class="grid-2" style="margin-bottom:4px">
+            <div class="form-group">
+                <label for="lieu">Lieu</label>
+                <input type="text" id="lieu" name="lieu" value="{{ candidature.lieu ?? '' }}"
+                       placeholder="Ville, télétravail…">
+            </div>
+            <div class="form-group">
+                <label for="type_contrat">Type de contrat</label>
+                <select id="type_contrat" name="type_contrat">
+                    {% set types = ['', 'CDI', 'CDD', 'Stage', 'Alternance', 'Apprentissage', 'Freelance', 'Intérim'] %}
+                    {% for t in types %}
+                        <option value="{{ t }}" {{ (candidature.type_contrat ?? '') == t ? 'selected' }}>{{ t == '' ? '— Non précisé —' : t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:4px">
+            <div class="form-group">
+                <label for="salaire">Salaire / rémunération</label>
+                <input type="text" id="salaire" name="salaire" value="{{ candidature.salaire ?? '' }}"
+                       placeholder="Ex : 38–42 k€ / an">
+            </div>
+            <div class="form-group">
+                <label for="statut">Statut</label>
+                <select id="statut" name="statut">
+                    {% for code, meta in statuses %}
+                        <option value="{{ code }}" {{ (candidature.statut ?? '') == code ? 'selected' }}>{{ meta.icon }} {{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:4px">
+            <div class="form-group">
+                <label for="date_candidature">Date de candidature</label>
+                <input type="date" id="date_candidature" name="date_candidature"
+                       value="{{ candidature.date_candidature ?? '' }}">
+                {% if erreurs.date_candidature is defined %}<div class="form-error">{{ erreurs.date_candidature }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="date_relance">Relance programmée</label>
+                <input type="date" id="date_relance" name="date_relance"
+                       value="{{ candidature.date_relance ?? '' }}">
+                <div class="form-help">Ex : candidature envoyée le 3, relance le 10.</div>
+                {% if erreurs.date_relance is defined %}<div class="form-error">{{ erreurs.date_relance }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="competences">Compétences visées</label>
+            <input type="text" id="competences" name="competences"
+                   value="{{ candidature.competences ?? '' }}"
+                   placeholder="PHP, Symfony, MySQL…">
+        </div>
+
+        <div class="form-group">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" placeholder="Contacts, points d’attention, contact recruteur…">{{ candidature.notes ?? '' }}</textarea>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:6px">
+            <button type="submit" class="btn btn-primary">
+                {{ mode == 'new' ? '＋ Ajouter la candidature' : '💾 Enregistrer' }}
+            </button>
+            <a class="btn btn-ghost" href="{{ path('app_candidature_index') }}">Annuler</a>
+        </div>
+    </form>
+
+    <aside class="card tip">
+        <h2 style="font-size:17px">💡 Astuce</h2>
+        <p>
+            Trop de champs à remplir à la main ? Collez une annonce dans
+            <b>Offres → Analyse intelligente</b> : l’IA extrait
+            automatiquement le poste, l’entreprise, le lieu, le contrat,
+            le salaire et les compétences, puis un bouton pré-remplit ce
+            formulaire.
+        </p>
+        <a class="btn btn-ghost btn-sm" href="{{ path('app_offer_analyser') }}">Analyser une annonce →</a>
+    </aside>
+</div>
+{% endblock %}

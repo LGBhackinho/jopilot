@@ -1,0 +1,64 @@
+{% extends 'base.html.twig' %}
+{% set active = 'home' %}
+
+{% block title %}JobPilot — Outil d'aide à candidater{% endblock %}
+
+{% block styles %}
+.hero { padding: 40px 0 20px; }
+.hero h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.1; letter-spacing: -1.8px; margin: 16px 0 12px; }
+.hero h1 span { color: var(--accent); }
+.intro { color: var(--muted); font-size: 16px; line-height: 1.8; max-width: 640px; }
+.actions { margin-top: 22px; display: flex; gap: 12px; flex-wrap: wrap; }
+.section { padding: 36px 0; }
+.tools { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.tool { padding: 18px; }
+.tool h3 { margin: 8px 0 6px; font-size: 16px; }
+.tool p { margin: 0; color: var(--muted); line-height: 1.7; font-size: 14px; }
+.tool a { display: inline-flex; margin-top: 12px; color: var(--accent); font-weight: 650; }
+@media (max-width: 900px) { .tools { grid-template-columns: 1fr; } }
+{% endblock %}
+
+{% block body %}
+<section class="hero">
+    <span class="eyebrow">OUTIL PERSO D'AIDE À CANDIDATER</span>
+    <h1>Analyser, matcher, adapter, <span>candidater</span></h1>
+    <p class="intro">
+        Un outil simple pour t'aider à trouver et cibler des annonces, analyser ton CV face à une offre,
+        générer une lettre de motivation strictement à partir de ton CV, et t'entraîner aux entretiens.
+        Alimenté par IA, avec API Albert en priorité ou ton provider au choix.
+    </p>
+    <div class="actions">
+        <a class="btn btn-primary" href="{{ path('app_assistant') }}">CV ↔ Offre →</a>
+        <a class="btn btn-ghost" href="{{ path('app_offer_analyser') }}">Analyser une annonce</a>
+        <a class="btn btn-ghost" href="{{ path('app_interview') }}">Préparer un entretien</a>
+        <a class="btn btn-ghost" href="{{ path('app_candidature_index') }}">Mes candidatures</a>
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head">
+        <h2 style="margin:0">Outils</h2>
+        <p class="muted">Pragmatique, sans fioritures.</p>
+    </div>
+    <div class="tools">
+        <article class="card tool">
+            <span>🧾</span>
+            <h3>Mon CV</h3>
+            <p>Extrais ton CV en texte, visualise-le et génère des mots-clés utiles pour cibler tes recherches.</p>
+            <a href="{{ path('app_cv_analyser') }}">Ouvrir →</a>
+        </article>
+        <article class="card tool">
+            <span>🎯</span>
+            <h3>Assistant CV & Lettre</h3>
+            <p>Score d'adéquation, écarts, conseils concrets. Lettre rédigée uniquement à partir de ton CV, orientée par l'annonce.</p>
+            <a href="{{ path('app_assistant') }}">Matcher & générer →</a>
+        </article>
+        <article class="card tool">
+            <span>🗣️</span>
+            <h3>Entretien</h3>
+            <p>Questions adaptées à l'offre et à ton CV, entraînement avec retour factuel.</p>
+            <a href="{{ path('app_interview') }}">S'entraîner →</a>
+        </article>
+    </div>
+</section>
+{% endblock %}

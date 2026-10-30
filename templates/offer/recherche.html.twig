@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+{% set active = 'offres' %}
+
+{% block title %}Recherche d’offres — JobPilot{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">🔎 RECHERCHE D’OFFRES</span>
+    <h1>Trouvez les offres liées à votre profil.</h1>
+    <p class="muted">Saisissez votre profil (métier + compétences), votre ville et le rayon souhaité pour détecter les offres locales et à distance.</p>
+</div>
+
+<form class="card" method="get" action="{{ path('app_offer_search') }}" style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+    <div class="form-group" style="flex:2;min-width:220px;margin:0">
+        <label for="q">Mots-clés (métier, compétences)</label>
+        <input type="text" id="q" name="q" value="{{ recherche.query|default('') }}"
+               placeholder="Ex : développeur PHP Symfony">
+    </div>
+    <div class="form-group" style="flex:1;min-width:150px;margin:0">
+        <label for="ville">Ville</label>
+        <input type="text" id="ville" name="ville" value="{{ recherche.ville|default('') }}"
+               placeholder="Ex : Lyon">
+    </div>
+    <div class="form-group" style="min-width:120px;margin:0">
+        <label for="rayon">Rayon</label>
+        <select id="rayon" name="rayon">
+            {% for r in [10, 30, 50, 100] %}
+                <option value="{{ r }}" {{ recherche.rayon is defined and recherche.rayon == r ? 'selected' }}>{{ r }} km</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">🔎 Rechercher</button>
+</form>
+
+<div style="margin-top:22px">
+    {% if recherche.query|default('') != '' %}
+        {% include 'partials/offres.html.twig' with { show_form: false } %}
+    {% else %}
+        <div class="empty">
+            <span class="empty-icon">🔎</span>
+            Lancez une recherche pour voir les offres correspondant à vos compétences et à votre ville.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

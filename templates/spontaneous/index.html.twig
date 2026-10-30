@@ -1,0 +1,266 @@
+{% extends 'base.html.twig' %}
+{% set active = 'candidatures' %}
+{% set activeSection = 'spontanees' %}
+
+{% block title %}Candidatures spontanées — JobPilot{% endblock %}
+
+{% block styles %}
+.stats { grid-template-columns: repeat(4, 1fr); }
+.import-card { margin-bottom: 24px; }
+.import-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 26px; align-items: start; }
+@media (max-width: 820px) { .import-grid { grid-template-columns: 1fr; } }
+.import-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.import-form .form-group { flex: 1; min-width: 230px; margin: 0; }
+.import-form input[type="file"] { padding: 9px; }
+.import-tips { background: var(--surface-3); border: 1px solid var(--border); border-radius: 13px; padding: 16px 18px; }
+.import-tips ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.import-tips code { background: var(--surface-2); padding: 2px 6px; border-radius: 5px; font-size: 12px; }
+
+.filter-bar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+.filter-bar .form-group { margin: 0; }
+.filter-bar .search-field { flex: 1; min-width: 220px; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.suivi-table { width: 100%; border-collapse: collapse; min-width: 980px; }
+.suivi-table th {
+    text-align: left;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--muted);
+    padding: 13px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.suivi-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; font-size: 13.5px; }
+.suivi-table tr:last-child td { border-bottom: 0; }
+.suivi-table tbody tr:hover { background: var(--surface-3); }
+.company-name { font-weight: 800; font-size: 14px; color: var(--text); }
+.contact-line { color: var(--muted); font-size: 12.5px; margin-top: 4px; line-height: 1.6; }
+.coord-line { display: block; color: var(--accent); font-weight: 650; font-size: 12.5px; margin-bottom: 3px; white-space: nowrap; }
+.coord-line.muted-link { color: var(--muted); }
+.tracking-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tracking-form input[type="date"] {
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 8px;
+    width: 135px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+}
+.tracking-form select {
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 8px;
+    max-width: 155px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+}
+.actions-cell .save {
+    background: none;
+    border: 0;
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 13px;
+    padding: 0;
+}
+.actions-cell .save:hover { transform: scale(1.1); }
+.response-date { display: block; margin-top: 5px; font-size: 11.5px; color: var(--muted); }
+.actions-cell { display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+.actions-cell a { color: var(--accent); font-weight: 700; font-size: 12.5px; }
+.actions-cell form { display: inline; margin: 0; }
+.actions-cell .delete { background: none; border: 0; cursor: pointer; color: var(--danger); font-size: 13px; padding: 0; }
+.letter-state { display: block; font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+@media (max-width: 700px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 430px) {
+    .stats { grid-template-columns: 1fr; }
+}
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">🤝 CANDIDATURES SPONTANÉES</span>
+    <h1>Vos démarches spontanées, suivies de bout en bout.</h1>
+    <p class="muted">
+        Importez un fichier CSV de sociétés, générez une lettre personnalisée puis suivez
+        la date d’envoi et la réponse reçue.
+    </p>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="{{ path('app_spontaneous_new') }}">＋ Nouvelle société</a>
+        <a class="btn btn-ghost" href="#import-csv">📥 Importer un CSV</a>
+    </div>
+</div>
+
+{% include 'candidature/_tabs.html.twig' %}
+
+{% if stats.total > 0 %}
+    <div class="stats">
+        <div class="card stat">
+            <div class="stat-icon">🏢</div>
+            <div><strong>{{ stats.total }}</strong><span>société{{ stats.total > 1 ? 's' : '' }} suivie{{ stats.total > 1 ? 's' : '' }}</span></div>
+        </div>
+        <div class="card stat">
+            <div class="stat-icon">📮</div>
+            <div><strong>{{ stats.a_envoyer }}</strong><span>à envoyer</span></div>
+        </div>
+        <div class="card stat">
+            <div class="stat-icon">⏳</div>
+            <div><strong>{{ stats.en_attente }}</strong><span>sans réponse pour l’instant</span></div>
+        </div>
+        <div class="card stat">
+            <div class="stat-icon">📬</div>
+            <div><strong>{{ stats.reponses }}</strong><span>réponse{{ stats.reponses > 1 ? 's' : '' }} reçue{{ stats.reponses > 1 ? 's' : '' }}</span></div>
+        </div>
+    </div>
+{% endif %}
+
+<div class="card import-card" id="import-csv">
+    <div class="import-grid">
+        <div>
+            <h2 style="font-size:19px">📥 Importer un fichier CSV</h2>
+            <p class="muted" style="font-size:13.5px;margin:0 0 16px">
+                Le fichier doit contenir au minimum une colonne <strong>Nom société</strong>.
+                Les colonnes <strong>Téléphone</strong> et <strong>Email</strong> sont recommandées.
+            </p>
+            <form class="import-form" method="post" action="{{ path('app_spontaneous_import') }}" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="csv_file">Fichier CSV</label>
+                    <input type="file" id="csv_file" name="csv_file" accept=".csv,.txt,text/csv,text/plain" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Importer le CSV</button>
+                <a class="btn btn-ghost" href="{{ path('app_spontaneous_csv_template') }}">⬇️ Modèle CSV</a>
+            </form>
+        </div>
+        <div class="import-tips">
+            <strong style="font-size:13.5px">💡 Format accepté</strong>
+            <ul>
+                <li>Séparateur <code>;</code>, <code>,</code> ou tabulation.</li>
+                <li>En-têtes accentués ou non (<code>Nom société</code>, <code>Téléphone</code>, <code>E-mail</code>…).</li>
+                <li>Encodage UTF-8 ou export Excel Windows.</li>
+                <li>Colonnes facultatives : contact, ville, secteur, poste visé, notes, date d’envoi, réponse.</li>
+                <li>Les doublons (même e-mail) sont ignorés automatiquement.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{% if stats.total == 0 %}
+    <div class="card empty">
+        <span class="empty-icon">📭</span>
+        Aucune société dans votre suivi de candidatures spontanées.<br>
+        Importez un CSV ou ajoutez une société manuellement pour commencer.
+    </div>
+{% else %}
+    <form class="filter-bar" method="get" action="{{ path('app_spontaneous_index') }}">
+        <div class="form-group search-field">
+            <label for="q">Rechercher</label>
+            <input type="search" id="q" name="q" value="{{ filters.q }}" placeholder="Société, contact, e-mail, ville…">
+        </div>
+        <div class="form-group">
+            <label for="reponse">Statut</label>
+            <select id="reponse" name="reponse">
+                <option value="">Tous les statuts</option>
+                {% for code, meta in statuses %}
+                    <option value="{{ code }}" {{ filters.reponse == code ? 'selected' }}>{{ meta.icon }} {{ meta.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-ghost">Filtrer</button>
+        {% if filters.q != '' or filters.reponse != '' %}
+            <a class="btn btn-ghost" href="{{ path('app_spontaneous_index') }}">Réinitialiser</a>
+        {% endif %}
+    </form>
+
+    {% if items is empty %}
+        <div class="card empty">
+            <span class="empty-icon">🔍</span>
+            Aucune société ne correspond à votre recherche.
+        </div>
+    {% else %}
+        <div class="table-wrap">
+            <table class="suivi-table">
+                <thead>
+                    <tr>
+                        <th>Société</th>
+                        <th>Coordonnées</th>
+                        <th>Date d’envoi &amp; statut</th>
+                        <th>Lettre</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                        <tr>
+                            <td>
+                                <div class="company-name">{{ item.nom_societe ?: '—' }}</div>
+                                <div class="contact-line">
+                                    {% if item.contact %}👤 {{ item.contact }}<br>{% endif %}
+                                    {% if item.ville %}📍 {{ item.ville }}{% endif %}
+                                    {% if item.secteur %} · {{ item.secteur }}{% endif %}
+                                    {% if item.poste %}<br>🎯 {{ item.poste }}{% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if item.telephone %}
+                                    <a class="coord-line" href="tel:{{ item.telephone|replace({' ': '', '.': '', '-': ''}) }}">📞 {{ item.telephone }}</a>
+                                {% endif %}
+                                {% if item.email %}
+                                    <a class="coord-line" href="mailto:{{ item.email }}">✉️ {{ item.email }}</a>
+                                {% endif %}
+                                {% if item.site_web %}
+                                    <a class="coord-line muted-link" href="{{ item.site_web starts with 'http' ? item.site_web : 'https://' ~ item.site_web }}" target="_blank" rel="noopener">🌐 Site web</a>
+                                {% endif %}
+                                {% if not item.telephone and not item.email and not item.site_web %}
+                                    <span class="contact-line">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form class="tracking-form" id="tracking-{{ item.id }}" method="post" action="{{ path('app_spontaneous_tracking', {id: item.id}) }}">
+                                    <input type="date" name="date_envoi" value="{{ item.date_envoi ?? '' }}" aria-label="Date d’envoi" title="Date d’envoi">
+                                    <select name="reponse" aria-label="Statut du suivi">
+                                        {% for code, meta in statuses %}
+                                            <option value="{{ code }}" {{ item.reponse == code ? 'selected' }}>{{ meta.icon }} {{ meta.label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                                {% if item.date_reponse %}
+                                    <span class="response-date">Réponse le {{ item.date_reponse|date('d/m/Y') }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ path('app_spontaneous_letter', {id: item.id}) }}">
+                                    {{ item._a_lettre ? '📄 Voir / modifier' : '✍️ Générer' }}
+                                </a>
+                                <span class="letter-state">
+                                    {% if item._a_lettre %}
+                                        Lettre prête
+                                    {% else %}
+                                        Aucune lettre
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="actions-cell">
+                                    <button type="submit" form="tracking-{{ item.id }}" class="save" title="Enregistrer le suivi">💾</button>
+                                    <a href="{{ path('app_spontaneous_edit', {id: item.id}) }}">✏️ Modifier</a>
+                                    <form method="post" action="{{ path('app_spontaneous_delete', {id: item.id}) }}"
+                                          onsubmit="return confirm('Supprimer cette société et sa lettre ?')">
+                                        <button type="submit" class="delete" title="Supprimer">🗑️</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

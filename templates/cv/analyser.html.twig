@@ -1,0 +1,188 @@
+{% extends 'base.html.twig' %}
+{% set active = 'cv' %}
+
+{% block title %}Analyse du CV — JobPilot{% endblock %}
+
+{% block styles %}
+.upload-zone {
+    display: block;
+    padding: 26px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: 14px;
+    background: var(--surface-3);
+    margin-bottom: 18px;
+    color: var(--text);
+    transition: border-color .15s;
+}
+.upload-zone:hover { border-color: var(--accent); }
+.upload-zone strong { display: block; margin-bottom: 4px; }
+.upload-zone input[type=file] { width: 100%; padding: 8px 0; color: var(--text); }
+.results-head { margin: 34px 0 18px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.result-card { min-width: 0; }
+.result-card label { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; font-weight: 800; font-size: 15px; }
+.card-icon { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: var(--accent-soft); font-size: 19px; }
+.result-card .content { color: var(--text-2); line-height: 1.8; font-size: 14.5px; overflow-wrap: anywhere; }
+.result-card .content ul { padding-left: 20px; margin: 0; }
+.result-card .content li { padding: 3px 0; }
+.result-card .content pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; color: var(--text-2); }
+.result-card.wide { grid-column: 1 / -1; }
+.empty { color: var(--muted); font-size: 14px; }
+.cv-meta { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; line-height: 1.7; }
+.cv-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cv-delete { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+@media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .result-card.wide { grid-column: auto; } }
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">✦ ANALYSE INTELLIGENTE</span>
+    <h1>Comprenez la valeur de votre CV.</h1>
+    <p class="muted">Importez votre PDF pour obtenir une synthèse de votre profil, vos points forts et des pistes d’amélioration.</p>
+</div>
+
+{% if erreur %}
+    <div class="alert alert-danger" role="alert">
+        <strong>Une erreur est survenue.</strong><br>{{ erreur }}
+    </div>
+{% endif %}
+
+<section class="card" style="margin-bottom:18px">
+    <h2>Mon CV enregistré</h2>
+    {% if cv_profile.cv_text %}
+        <p class="cv-meta">
+            ✅ CV disponible{% if cv_profile.cv_filename %} · {{ cv_profile.cv_filename }}{% endif %}
+            {% if cv_profile.updated_at %} · mis à jour le {{ cv_profile.updated_at|date('d/m/Y à H:i') }}{% endif %}
+            <br>
+            Il est réutilisé automatiquement sur les écrans CV ↔ Offre, Entretien et Candidatures spontanées.
+        </p>
+    {% else %}
+        <p class="muted">Aucun CV enregistré pour le moment. Importez un PDF ou saisissez votre CV ci-dessous.</p>
+    {% endif %}
+
+    <form method="post">
+        <div class="form-group">
+            <label for="cv_text">Contenu du CV</label>
+            <textarea id="cv_text" name="cv_text" style="min-height:180px"
+                      placeholder="Collez ou modifiez ici le contenu de votre CV…">{{ cv_profile.cv_text }}</textarea>
+        </div>
+        <div class="cv-actions">
+            <button type="submit" class="btn btn-ghost" name="action" value="save">💾 {{ cv_profile.cv_text ? 'Enregistrer les modifications' : 'Enregistrer mon CV' }}</button>
+            <button type="submit" class="btn btn-primary" name="action" value="analyze">✨ Analyser ce CV</button>
+        </div>
+    </form>
+
+    {% if cv_profile.cv_text %}
+        <div class="cv-delete">
+            <form method="post" onsubmit="return confirm('Supprimer le CV enregistré ?')">
+                <input type="hidden" name="action" value="delete">
+                <button type="submit" class="btn btn-danger btn-sm">🗑️ Supprimer le CV enregistré</button>
+            </form>
+        </div>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>{{ cv_profile.cv_text ? 'Remplacer mon CV par un PDF' : 'Importer mon CV' }}</h2>
+    <p class="muted">
+        Choisissez un CV au format PDF, de 5 Mo maximum.
+        {% if cv_profile.cv_text %}Il remplacera le CV enregistré après extraction.{% endif %}
+    </p>
+    <form id="cv-form"
+          action="{{ path('app_cv_analyser') }}"
+          method="post"
+          enctype="multipart/form-data">
+        <label class="upload-zone" for="cv">
+            <strong>📄 Sélectionner un fichier PDF</strong>
+            <input type="file" id="cv" name="cv" accept="application/pdf,.pdf" required>
+            <span class="form-help">PDF uniquement · 5 Mo maximum</span>
+        </label>
+        <button class="btn btn-primary" id="submit-button" type="submit">
+            ⬆️ {{ cv_profile.cv_text ? 'Remplacer et analyser' : 'Importer et analyser' }}
+        </button>
+    </form>
+</section>
+
+{% if resultat %}
+    {% set labels = {
+        'resume': 'Résumé du profil',
+        'competences': 'Compétences',
+        'experiences': 'Expériences professionnelles',
+        'formations': 'Formations',
+        'langues': 'Langues',
+        'points_forts': 'Points forts',
+        'ameliorations': 'Pistes d’amélioration',
+        'metiers_suggeres': 'Métiers suggérés',
+        'ville': 'Ville'
+    } %}
+    {% set icons = {
+        'resume': '👤',
+        'competences': '⚡',
+        'experiences': '💼',
+        'formations': '🎓',
+        'langues': '🌍',
+        'points_forts': '⭐',
+        'ameliorations': '🛠️',
+        'metiers_suggeres': '🎯',
+        'ville': '📍'
+    } %}
+
+    <div class="results-head">
+        <span class="eyebrow">RAPPORT GÉNÉRÉ</span>
+        <h2>Les résultats de votre analyse</h2>
+        <p class="muted">Informations extraites et suggestions produites par l’IA. Vérifiez les résultats avant de les utiliser.</p>
+    </div>
+
+    <div class="grid">
+        {% for cle, label in labels %}
+            {% if resultat[cle] is defined and resultat[cle] is not empty %}
+                <article class="result-card card {{ cle in ['resume', 'experiences', 'ameliorations', 'metiers_suggeres'] ? 'wide' : '' }}">
+                    <label>
+                        <div class="card-icon">{{ icons[cle] }}</div>
+                        {{ label }}
+                    </label>
+                    <div class="content">
+                        {% set valeur = resultat[cle] %}
+                        {% if valeur is iterable %}
+                            <ul>
+                                {% for element in valeur %}
+                                    <li>
+                                        {% if element is iterable %}
+                                            <pre>{{ element|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                                        {% else %}
+                                            {{ element }}
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            {{ valeur|nl2br }}
+                        {% endif %}
+                    </div>
+                </article>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    {% if recherche is defined and recherche %}
+        {% include 'partials/offres.html.twig' %}
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('cv-form');
+        const button = document.getElementById('submit-button');
+
+        if (!form || !button) return;
+
+        form.addEventListener('submit', function () {
+            button.disabled = true;
+            button.textContent = 'Analyse en cours…';
+        });
+    });
+</script>
+{% endblock %}

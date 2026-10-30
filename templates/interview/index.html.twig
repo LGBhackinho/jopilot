@@ -1,0 +1,145 @@
+{% extends 'base.html.twig' %}
+{% set active = 'entretien' %}
+
+{% block title %}Préparation aux entretiens — JobPilot{% endblock %}
+
+{% block styles %}
+.layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 22px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+.type-badge { font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 20px; }
+.type-technique { background: var(--info-soft); color: var(--info); }
+.type-comportementale { background: var(--warn-soft); color: var(--warn); }
+.type-motivation { background: var(--accent-soft); color: var(--accent); }
+.type-rh { background: var(--success-soft); color: var(--success); }
+.question-item { padding: 18px; border: 1px solid var(--border); border-radius: 15px; margin-bottom: 16px; background: var(--surface); }
+.question-item h3 { margin: 10px 0 6px; font-size: 16px; line-height: 1.55; }
+.question-item .detail { font-size: 13.5px; color: var(--text-2); line-height: 1.7; }
+.question-item .detail b { color: var(--text); }
+.feedback-box { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-strong); }
+.feedback-note {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 58px; padding: 10px 14px; border-radius: 14px;
+    font-size: 22px; font-weight: 850; color: var(--accent-contrast);
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+}
+.result-block { margin-bottom: 14px; }
+.result-block h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 0 0 7px; }
+.result-block ul { margin: 0; padding-left: 18px; line-height: 1.85; color: var(--text-2); font-size: 14.5px; }
+.result-block li { padding: 2px 0; }
+.result-block li::marker { color: var(--accent); }
+.answer-box { white-space: pre-wrap; font: inherit; font-size: 14px; line-height: 1.8; color: var(--text-2); background: var(--surface-3); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.cv-saved-note { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: var(--success-soft); color: var(--success); font-size: 12.5px; line-height: 1.65; }
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">🗣️ PRÉPARATION AUX ENTRETIENS</span>
+    <h1>Anticipez l’entretien avant le jour J.</h1>
+    <p class="muted">Générez des questions adaptées à l’offre, entraînez-vous à répondre et recevez un retour argumenté.</p>
+</div>
+
+{% if erreur %}
+    <div class="alert alert-danger">{{ erreur }}</div>
+{% endif %}
+
+<div class="layout">
+    <div>
+        <form class="card" method="post">
+            <div class="form-group">
+                <label for="offre">L’offre visée</label>
+                <textarea id="offre" name="offre" style="min-height:160px"
+                          placeholder="Collez l’annonce pour cibler les questions.">{{ offre }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="cv_text">Votre CV (enregistré automatiquement)</label>
+                {% if cv_profile.cv_text %}
+                    <div class="cv-saved-note">
+                        ✅ CV chargé depuis votre profil{% if cv_profile.updated_at %} · mis à jour le {{ cv_profile.updated_at|date('d/m/Y à H:i') }}{% endif %}.
+                        Modifiez-le ici si nécessaire.
+                    </div>
+                {% endif %}
+                <textarea id="cv_text" name="cv_text" style="min-height:120px"
+                          placeholder="Votre expérience, vos postes, vos technologies…">{{ cv_text }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" name="action" value="questions">
+                ✨ Générer les questions
+            </button>
+        </form>
+
+        {% if feedback %}
+            <div class="card" style="margin-top:20px">
+                <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px">
+                    <span class="feedback-note">{{ feedback.evaluation.note|default('—') }}/10</span>
+                    <div>
+                        <h2 style="font-size:18px;margin:0">Retour sur votre réponse</h2>
+                        <div style="font-size:13.5px;color:var(--text-2);margin-top:4px">{{ feedback.evaluation.appreciation|default('') }}</div>
+                    </div>
+                </div>
+
+                {% if feedback.evaluation.points_forts is defined and feedback.evaluation.points_forts %}
+                    <div class="result-block">
+                        <h3 style="color:var(--success)">✅ Points forts</h3>
+                        <ul>{% for p in feedback.evaluation.points_forts %}<li>{{ p }}</li>{% endfor %}</ul>
+                    </div>
+                {% endif %}
+
+                {% if feedback.evaluation.axes_amelioration is defined and feedback.evaluation.axes_amelioration %}
+                    <div class="result-block">
+                        <h3 style="color:var(--danger)">🛠️ Pistes d’amélioration</h3>
+                        <ul>{% for a in feedback.evaluation.axes_amelioration %}<li>{{ a }}</li>{% endfor %}</ul>
+                    </div>
+                {% endif %}
+
+                {% if feedback.evaluation.reponse_amelioree|default('') %}
+                    <div class="result-block">
+                        <h3>💡 Réponse modèle</h3>
+                        <div class="answer-box">{{ feedback.evaluation.reponse_amelioree }}</div>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div>
+        {% if questions is empty %}
+            <div class="card empty">
+                <span class="empty-icon">🎯</span>
+                Les questions générées apparaîtront ici.<br>
+                Collez une annonce et cliquez sur « Générer les questions ».
+            </div>
+        {% else %}
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <h2 style="font-size:20px;margin:0">{{ questions|length }} questions prêtes</h2>
+            </div>
+
+            {% for q in questions %}
+                <article class="question-item">
+                    <div>
+                        {% set type = q.type|default('rh') %}
+                        <span class="type-badge type-{{ type }}">{{ type|title }}</span>
+                    </div>
+                    <h3>{{ q.question|default('') }}</h3>
+                    {% if q.attendu is defined and q.attendu %}
+                        <div class="detail"><b>Ce que le recruteur évalue :</b> {{ q.attendu }}</div>
+                    {% endif %}
+                    {% if q.piste_reponse is defined and q.piste_reponse %}
+                        <div class="detail" style="margin-top:5px"><b>💡 Piste :</b> {{ q.piste_reponse }}</div>
+                    {% endif %}
+
+                    <form class="feedback-box" method="post">
+                        <input type="hidden" name="action" value="feedback">
+                        <input type="hidden" name="question" value="{{ q.question|default('') }}">
+                        {% if offre %}<input type="hidden" name="offre" value="{{ offre }}">{% endif %}
+                        <div class="form-group" style="margin-bottom:10px">
+                            <label for="reponse-{{ loop.index }}">Votre réponse d’entraînement</label>
+                            <textarea id="reponse-{{ loop.index }}" name="reponse" style="min-height:100px"
+                                      placeholder="Structurez votre réponse (par ex. avec la méthode STAR)."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-ghost btn-sm">⚡ Obtenir un retour</button>
+                    </form>
+                </article>
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

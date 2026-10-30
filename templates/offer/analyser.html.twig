@@ -1,0 +1,153 @@
+{% extends 'base.html.twig' %}
+{% set active = 'offres' %}
+
+{% block title %}Analyse d’offre — JobPilot{% endblock %}
+
+{% block styles %}
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.textarea-lg { min-height: 320px; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip { background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 700; padding: 5px 11px; border-radius: 20px; }
+.chip.success { background: var(--success-soft); color: var(--success); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.info { background: var(--info-soft); color: var(--info); }
+.result-block { margin-bottom: 16px; }
+.result-block h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 0 0 7px; }
+.result-block p { margin: 0; line-height: 1.7; color: var(--text-2); font-size: 14.5px; }
+.result-block ul { margin: 0; padding-left: 18px; line-height: 1.8; color: var(--text-2); font-size: 14.5px; }
+.result-block li { padding: 2px 0; }
+.result-block li::marker { color: var(--accent); }
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">🧠 ANALYSE INTELLIGENTE DES OFFRES</span>
+    <h1>Décortiquez une annonce.</h1>
+    <p class="muted">Collez le texte d’une offre d’emploi : l’IA en extrait les compétences, technologies, missions et critères recherchés.</p>
+</div>
+
+<div class="layout">
+    <div>
+        <form class="card" method="post">
+            <div class="form-group">
+                <label for="offre">Texte de l’annonce</label>
+                <textarea id="offre" name="offre" class="textarea-lg" required
+                          placeholder="Copiez ici le corps de l’annonce (compétences, missions, profil recherché, conditions…).">{{ offre }}</textarea>
+                <div class="form-help">Le contenu n’est pas modifié : l’IA analyse le texte tel qu’il est collé.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">✨ Analyser l’annonce</button>
+        </form>
+    </div>
+
+    <div>
+        {% if erreur %}
+            <div class="alert alert-danger">{{ erreur }}</div>
+        {% endif %}
+
+        {% if resultat %}
+            <div class="card">
+                <div class="result-block">
+                    <h3>Le poste</h3>
+                    <p><strong>{{ resultat.poste|default('—') }}</strong></p>
+                </div>
+
+                {% if resultat.entreprise is defined and resultat.entreprise %}
+                    <div class="result-block">
+                        <h3>Entreprise</h3>
+                        <p>{{ resultat.entreprise }}</p>
+                    </div>
+                {% endif %}
+
+                <div class="result-block">
+                    <h3>Localisation / contrat / salaire</h3>
+                    <p>
+                        {{ resultat.lieu|default('—') }}{% if resultat.type_contrat|default('') %} · {{ resultat.type_contrat }}{% endif %}{% if resultat.salaire|default('') %} · {{ resultat.salaire }}{% endif %}
+                    </p>
+                </div>
+
+                {% if resultat.experience_requise|default('') or resultat.formation_requise|default('') %}
+                    <div class="result-block">
+                        <h3>Expérience & formation exigées</h3>
+                        <p>
+                            {% if resultat.experience_requise|default('') %}{{ resultat.experience_requise }}{% endif %}
+                            {% if resultat.experience_requise|default('') and resultat.formation_requise|default('') %} · {% endif %}
+                            {% if resultat.formation_requise|default('') %}{{ resultat.formation_requise }}{% endif %}
+                        </p>
+                    </div>
+                {% endif %}
+
+                {% if resultat.competences_requises is defined and resultat.competences_requises %}
+                    <div class="result-block">
+                        <h3>Compétences requises</h3>
+                        <div class="chips">
+                            {% for c in resultat.competences_requises %}<span class="chip">{{ c }}</span>{% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if resultat.technologies is defined and resultat.technologies %}
+                    <div class="result-block">
+                        <h3>Technologies & outils</h3>
+                        <div class="chips">
+                            {% for t in resultat.technologies %}<span class="chip success">{{ t }}</span>{% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if resultat.soft_skills is defined and resultat.soft_skills %}
+                    <div class="result-block">
+                        <h3>Qualités humaines</h3>
+                        <div class="chips">
+                            {% for s in resultat.soft_skills %}<span class="chip warn">{{ s }}</span>{% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if resultat.missions is defined and resultat.missions %}
+                    <div class="result-block">
+                        <h3>Missions principales</h3>
+                        <ul>{% for m in resultat.missions %}<li>{{ m }}</li>{% endfor %}</ul>
+                    </div>
+                {% endif %}
+
+                {% if resultat.mots_cles is defined and resultat.mots_cles %}
+                    <div class="result-block">
+                        <h3>Mots-clés (ATS)</h3>
+                        <div class="chips">
+                            {% for k in resultat.mots_cles %}<span class="chip info">{{ k }}</span>{% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if resultat.profil_recherche|default('') %}
+                    <div class="result-block">
+                        <h3>Profil recherché</h3>
+                        <p>{{ resultat.profil_recherche }}</p>
+                    </div>
+                {% endif %}
+
+                <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap">
+                    {% set pre = {
+                        'poste': resultat.poste|default(''),
+                        'entreprise': resultat.entreprise|default(''),
+                        'lieu': resultat.lieu|default(''),
+                        'type_contrat': resultat.type_contrat|default(''),
+                        'salaire': resultat.salaire|default(''),
+                        'competences': resultat.competences_requises is defined and resultat.competences_requises ? resultat.competences_requises|join(' · ') : ''
+                    } %}
+                    <a class="btn btn-primary btn-sm" href="{{ path('app_candidature_new', pre) }}">
+                        📋 Créer une candidature avec ces données
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <div class="card empty">
+                <span class="empty-icon">🕵️</span>
+                Le résultat de l’analyse apparaîtra ici.<br>
+                Collez une annonce et cliquez sur « Analyser ».
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

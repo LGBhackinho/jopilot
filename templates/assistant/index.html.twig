@@ -1,0 +1,198 @@
+{% extends 'base.html.twig' %}
+{% set active = 'assistant' %}
+
+{% block title %}Assistant CV & lettre — JobPilot{% endblock %}
+
+{% block styles %}
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.tabs { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.tab-btn { flex: 1; min-width: 200px; }
+.tab-btn.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.input-row { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.input-row .form-group { flex: 1; margin: 0; min-width: 200px; }
+
+.score-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 74px; padding: 14px 16px; border-radius: 16px;
+    font-size: 26px; font-weight: 850; color: var(--accent-contrast);
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.verdict { margin-top: 6px; color: var(--text-2); line-height: 1.7; font-size: 14.5px; }
+.result-block { margin-bottom: 16px; }
+.result-block h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 0 0 7px; }
+.result-block ul { margin: 0; padding-left: 18px; line-height: 1.85; color: var(--text-2); font-size: 14.5px; }
+.result-block li { padding: 2px 0; }
+.result-block li::marker { color: var(--accent); }
+.lettre-box {
+    white-space: pre-wrap;
+    font: inherit;
+    font-size: 14.5px;
+    line-height: 1.85;
+    color: var(--text-2);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+}
+.cv-saved-note { margin-bottom: 14px; padding: 11px 13px; border-radius: 10px; background: var(--success-soft); color: var(--success); font-size: 12.5px; line-height: 1.65; }
+.btn-copy { margin-left: 8px; }
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">📝 ASSISTANT CV & LETTRE DE MOTIVATION</span>
+    <h1>Votre CV face à une offre.</h1>
+    <p class="muted">Obtenez un score d’adéquation, des conseils pour adapter votre CV et une lettre rédigée uniquement à partir de votre expérience réelle.</p>
+</div>
+
+{% if erreur %}
+    <div class="alert alert-danger">{{ erreur }}</div>
+{% endif %}
+
+<div class="layout">
+    <div>
+        <form class="card" method="post" enctype="multipart/form-data">
+            <div class="input-row">
+                <div class="form-group">
+                    <label for="cv_file">Importer / remplacer votre CV (PDF, optionnel)</label>
+                    <input type="file" id="cv_file" name="cv_file" accept="application/pdf,.pdf">
+                </div>
+                <button type="submit" class="btn btn-ghost" name="action" value="match">
+                    ⬆️ Extraire le PDF
+                </button>
+            </div>
+
+            {% if cv_profile.cv_text %}
+                <div class="cv-saved-note">
+                    ✅ <strong>CV enregistré</strong>
+                    {% if cv_profile.cv_filename %}· {{ cv_profile.cv_filename }}{% endif %}
+                    {% if cv_profile.updated_at %}· mis à jour le {{ cv_profile.updated_at|date('d/m/Y à H:i') }}{% endif %}
+                    <br>
+                    Il est prérempli ci-dessous. Modifiez le texte ou importez un nouveau PDF pour le remplacer.
+                </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="cv_text">Contenu de votre CV</label>
+                <textarea id="cv_text" name="cv_text" placeholder="Votre parcours : postes occupés, missions, compétences, formations, outils maîtrisés…">{{ cv_text }}</textarea>
+                <div class="form-help">Le CV utilisé est enregistré automatiquement dans votre profil et réutilisé sur les autres écrans. L’IA n’utilisera que les informations réellement présentes ici.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="offre">L’offre visée</label>
+                <textarea id="offre" name="offre" class="textarea-lg" style="min-height:200px"
+                          placeholder="Collez l’annonce du poste visé.">{{ offre }}</textarea>
+            </div>
+
+            <div class="tabs">
+                <button class="btn btn-primary tab-btn" type="submit" name="action" value="match" id="btn-match">
+                    🎯 Analyser l’adéquation
+                </button>
+                <button class="btn btn-ghost tab-btn" type="submit" name="action" value="lettre" id="btn-lettre">
+                    ✍️ Générer la lettre
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div>
+        {% if resultat %}
+            {% if action == 'lettre' %}
+                <div class="card">
+                    <div class="result-block">
+                        <h3>Objet</h3>
+                        <p><strong>{{ resultat.objet|default('') }}</strong></p>
+                    </div>
+                    <div class="result-block">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <h3 style="margin:0">Votre lettre</h3>
+                            <button type="button" class="btn btn-ghost btn-sm btn-copy" id="copy-lettre">📋 Copier</button>
+                        </div>
+                        <div class="lettre-box" id="lettre-box">{{ resultat.lettre|default('') }}</div>
+                    </div>
+                    {% if resultat.elements_reutilises is defined and resultat.elements_reutilises %}
+                        <div class="result-block">
+                            <h3>Éléments de votre CV réutilisés</h3>
+                            <ul>{% for e in resultat.elements_reutilises %}<li>{{ e }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="card">
+                    <div style="display:flex;gap:16px;align-items:center;margin-bottom:18px">
+                        <span class="score-pill">{{ resultat.score_match|default('—') }}/100</span>
+                        <div>
+                            <h2 style="font-size:19px;margin:0">Adéquation CV ↔ offre</h2>
+                            <div class="verdict">{{ resultat.verdict|default('') }}</div>
+                        </div>
+                    </div>
+
+                    {% if resultat.points_forts is defined and resultat.points_forts %}
+                        <div class="result-block">
+                            <h3 style="color:var(--success)">✅ Points forts</h3>
+                            <ul>{% for p in resultat.points_forts %}<li>{{ p }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+
+                    {% if resultat.lacunes is defined and resultat.lacunes %}
+                        <div class="result-block">
+                            <h3 style="color:var(--danger)">⚠️ Lacunes</h3>
+                            <ul>{% for l in resultat.lacunes %}<li>{{ l }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+
+                    {% if resultat.mots_cles_manquants is defined and resultat.mots_cles_manquants %}
+                        <div class="result-block">
+                            <h3 style="color:var(--warn)">🔑 Mots-clés de l’offre absents du CV</h3>
+                            <ul>{% for k in resultat.mots_cles_manquants %}<li>{{ k }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+
+                    {% if resultat.conseils_cv is defined and resultat.conseils_cv %}
+                        <div class="result-block">
+                            <h3>🛠️ Conseils pour adapter votre CV</h3>
+                            <ul>{% for c in resultat.conseils_cv %}<li>{{ c }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+
+                    {% if resultat.conseils_lettre is defined and resultat.conseils_lettre %}
+                        <div class="result-block">
+                            <h3>✍️ À valoriser dans la lettre</h3>
+                            <ul>{% for c in resultat.conseils_lettre %}<li>{{ c }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+
+                    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+                        <button class="btn btn-primary btn-sm" type="button" id="auto-lettre">✍️ Générer la lettre maintenant</button>
+                    </div>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="card empty">
+                <span class="empty-icon">🧲</span>
+                Résultat d’adéquation ou lettre générée ici.<br>
+                Renseignez votre expérience et l’offre, puis lancez une analyse.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+    document.getElementById('copy-lettre')?.addEventListener('click', function () {
+        const text = document.getElementById('lettre-box')?.innerText || '';
+        navigator.clipboard.writeText(text).then(function () {
+            this.textContent = '✅ Copié';
+        }.bind(this));
+    });
+
+    document.getElementById('auto-lettre')?.addEventListener('click', function () {
+        const btn = document.getElementById('btn-lettre');
+        btn.click();
+    });
+</script>
+{% endblock %}

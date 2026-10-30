@@ -1,0 +1,230 @@
+{% extends 'base.html.twig' %}
+{% set active = 'candidatures' %}
+{% set activeSection = 'spontanees' %}
+
+{% block title %}Lettre pour {{ item.nom_societe }} — JobPilot{% endblock %}
+
+{% block styles %}
+.layout { display: grid; grid-template-columns: 1fr 1.1fr; gap: 22px; align-items: start; }
+@media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+.layout .card { margin-bottom: 16px; }
+.letter-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
+.letter-head h2 { margin: 0; font-size: 19px; }
+.letter-head small { color: var(--muted); font-size: 12px; }
+.letter-editor {
+    width: 100%;
+    min-height: 430px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 14.5px;
+    line-height: 1.85;
+    resize: vertical;
+}
+.letter-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.letter-warnings { margin: 0 0 16px; padding: 12px 14px; border-radius: 11px; background: var(--warn-soft); color: var(--warn); font-size: 13px; line-height: 1.7; }
+.letter-warnings ul { margin: 6px 0 0; padding-left: 18px; }
+.letter-elements { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.letter-elements summary { cursor: pointer; font-weight: 700; color: var(--text-2); }
+.letter-elements ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.8; }
+.field-help-inline { font-size: 12px; color: var(--muted); margin-top: 5px; }
+.cv-saved-note { margin-bottom: 16px; padding: 12px 14px; border-radius: 11px; background: var(--success-soft); color: var(--success); font-size: 13px; line-height: 1.7; }
+.print-letter { display: none; white-space: pre-wrap; font-size: 14.5px; line-height: 1.9; color: #000; }
+@media print {
+    body { background: #fff; }
+    .app-nav, .footer, .page-head, .subnav, .alerts, .generation-col, .letter-actions, .letter-head .btn, .letter-elements, .letter-warnings { display: none !important; }
+    .container { padding: 0; max-width: none; }
+    .layout { display: block; }
+    .letter-card { border: 0; box-shadow: none; padding: 0; }
+    .letter-card form, .letter-editor { display: none !important; }
+    .print-letter { display: block; }
+}
+{% endblock %}
+
+{% block body %}
+<div class="page-head">
+    <span class="eyebrow">✍️ LETTRE DE CANDIDATURE SPONTANÉE</span>
+    <h1>{{ item.nom_societe }}</h1>
+    <p class="muted">
+        <a href="{{ path('app_spontaneous_index') }}">← Retour aux candidatures spontanées</a>
+        · <a href="{{ path('app_spontaneous_edit', {id: item.id}) }}">✏️ Modifier la fiche société</a>
+    </p>
+</div>
+
+{% include 'candidature/_tabs.html.twig' %}
+
+{% if erreur %}
+    <div class="alert alert-danger">{{ erreur }}</div>
+{% endif %}
+
+<div class="layout">
+    <div class="generation-col">
+        <form class="card" method="post" enctype="multipart/form-data">
+            <h2 style="font-size:18px">1. Votre CV</h2>
+
+            {% if cv_profile.cv_text %}
+                <div class="cv-saved-note">
+                    ✅ <strong>CV enregistré</strong>
+                    {% if cv_profile.cv_filename %}· {{ cv_profile.cv_filename }}{% endif %}
+                    {% if cv_profile.updated_at %}· mis à jour le {{ cv_profile.updated_at|date('d/m/Y à H:i') }}{% endif %}
+                    <br>
+                    Il est prérempli ci-dessous. Modifiez le texte ou importez un nouveau PDF pour le remplacer.
+                </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="cv_file">Importer / remplacer votre CV (PDF)</label>
+                <input type="file" id="cv_file" name="cv_file" accept="application/pdf,.pdf">
+                <div class="field-help-inline">Le texte du PDF est extrait et enregistré dans votre profil CV. Le fichier PDF lui-même n’est pas conservé.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="cv_text">Contenu de votre CV</label>
+                <textarea id="cv_text" name="cv_text" placeholder="Parcours, postes occupés, compétences, formations, outils…">{{ cv_text }}</textarea>
+                <div class="field-help-inline">
+                    Ce CV est réutilisé automatiquement sur les autres écrans. L’IA n’utilisera que ce qui est réellement présent ici.
+                </div>
+            </div>
+
+            <h2 style="font-size:18px;margin-top:22px">2. Personnaliser</h2>
+            <div class="grid-2" style="margin-bottom:4px">
+                <div class="form-group">
+                    <label for="poste">Poste / domaine visé</label>
+                    <input type="text" id="poste" name="poste"
+                           value="{{ form_data.poste }}" placeholder="Ex : Développeur PHP / Symfony">
+                </div>
+                <div class="form-group">
+                    <label for="nom_candidat">Votre nom (signature)</label>
+                    <input type="text" id="nom_candidat" name="nom_candidat"
+                           value="{{ form_data.nom_candidat }}" placeholder="Prénom Nom">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="competences">Compétences à mettre en avant</label>
+                <input type="text" id="competences" name="competences"
+                       value="{{ form_data.competences }}" placeholder="PHP, Symfony, MySQL, gestion de projet…">
+            </div>
+
+            <div class="form-group">
+                <label for="motivation">Pourquoi cette société ?</label>
+                <textarea id="motivation" name="motivation" style="min-height:110px"
+                          placeholder="Ce qui vous attire : activité, valeurs, projet, secteur…">{{ form_data.motivation }}</textarea>
+                <div class="field-help-inline">Facultatif, mais cela rend la lettre plus crédible sans rien inventer sur la société.</div>
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-primary" name="action" value="generate">✍️ Générer la lettre</button>
+                <button type="submit" class="btn btn-ghost" name="action" value="save_cv">💾 Enregistrer mon CV</button>
+            </div>
+            <div class="field-help-inline" style="margin-top:10px">
+                La génération peut prendre quelques secondes selon le fournisseur d’IA configuré.
+            </div>
+        </form>
+    </div>
+
+    <div>
+        {% if item.lettre_texte is defined and item.lettre_texte %}
+            <div class="card letter-card">
+                <div class="letter-head">
+                    <div>
+                        <h2>Votre lettre</h2>
+                        <small>
+                            {{ item.nom_societe }}
+                            {% if item.lettre_generee_at %} · générée le {{ item.lettre_generee_at|date('d/m/Y à H:i') }}{% endif %}
+                        </small>
+                    </div>
+                    <a class="btn btn-ghost btn-sm" href="{{ path('app_spontaneous_letter_download', {id: item.id}) }}">⬇️ .txt</a>
+                </div>
+
+                {% if item.lettre_avertissements is defined and item.lettre_avertissements %}
+                    <div class="letter-warnings">
+                        <strong>⚠️ Points à vérifier</strong>
+                        <ul>
+                            {% for avertissement in item.lettre_avertissements %}
+                                <li>{{ avertissement }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+                <form method="post" action="{{ path('app_spontaneous_letter', {id: item.id}) }}">
+                    <input type="hidden" name="action" value="save">
+
+                    <div class="form-group">
+                        <label for="lettre_objet">Objet</label>
+                        <input type="text" id="lettre_objet" name="lettre_objet"
+                               value="{{ item.lettre_objet ?? '' }}">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:8px">
+                        <label for="lettre_texte">Lettre (modifiable)</label>
+                        <textarea class="letter-editor" id="lettre_texte" name="lettre_texte">{{ item.lettre_texte }}</textarea>
+                    </div>
+
+                    <div class="letter-actions">
+                        <button type="submit" class="btn btn-primary btn-sm">💾 Enregistrer les modifications</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="copy-lettre">📋 Copier</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="print-lettre">🖨️ Imprimer</button>
+                    </div>
+                </form>
+
+                <div class="letter-actions">
+                    <form method="post" action="{{ path('app_spontaneous_letter', {id: item.id}) }}"
+                          onsubmit="return confirm('Supprimer cette lettre ? La fiche société sera conservée.')">
+                        <input type="hidden" name="action" value="delete_letter">
+                        <button type="submit" class="btn btn-danger btn-sm">🗑️ Supprimer la lettre</button>
+                    </form>
+                </div>
+
+                {% if item.lettre_elements_reutilises is defined and item.lettre_elements_reutilises %}
+                    <details class="letter-elements">
+                        <summary>Éléments de votre CV utilisés</summary>
+                        <ul>
+                            {% for element in item.lettre_elements_reutilises %}
+                                <li>{{ element }}</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                {% endif %}
+
+                <div class="print-letter">
+                    {% if item.lettre_objet %}Objet : {{ item.lettre_objet }}{{ "\n\n" }}{% endif %}{{ item.lettre_texte }}
+                </div>
+            </div>
+        {% else %}
+            <div class="card empty">
+                <span class="empty-icon">📝</span>
+                Aucune lettre pour cette société.<br>
+                Remplissez votre CV à gauche puis cliquez sur <strong>Générer la lettre</strong>.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+    document.getElementById('copy-lettre')?.addEventListener('click', function () {
+        const text = document.getElementById('lettre_texte')?.value || '';
+        if (!text) {
+            return;
+        }
+        navigator.clipboard.writeText(text).then(function () {
+            const button = document.getElementById('copy-lettre');
+            if (button) {
+                button.textContent = '✅ Copié';
+                setTimeout(function () { button.textContent = '📋 Copier'; }, 2000);
+            }
+        });
+    });
+
+    document.getElementById('print-lettre')?.addEventListener('click', function () {
+        window.print();
+    });
+</script>
+{% endblock %}

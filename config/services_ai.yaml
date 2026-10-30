@@ -1,0 +1,47 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\Service\Ai\:
+        resource: '../src/Service/Ai/'
+        public: true
+
+    App\Service\Ai\Provider\:
+        resource: '../src/Service/Ai/Provider/'
+        public: true
+
+    app.ai_client.albert:
+        class: App\Service\Ai\Provider\AlbertClient
+        autowire: true
+        autoconfigure: true
+        public: true
+        tags: ['app.ai_client']
+
+    app.ai_client.gemini:
+        class: App\Service\Ai\Provider\GeminiNewClient
+        autowire: true
+        autoconfigure: true
+        public: true
+        tags: ['app.ai_client']
+
+    app.ai_client.openai:
+        class: App\Service\Ai\Provider\OpenAiCompatibleClient
+        autowire: true
+        autoconfigure: true
+        public: true
+        tags: ['app.ai_client']
+
+    app.ai_client.claude:
+        class: App\Service\Ai\Provider\AnthropicClient
+        autowire: true
+        autoconfigure: true
+        public: true
+        tags: ['app.ai_client']
+
+    App\Service\Ai\AiManager:
+        public: true
+        arguments:
+            $clients: !tagged_iterator app.ai_client
+            $params: '@parameter_bag'
+            $logger: '@logger'

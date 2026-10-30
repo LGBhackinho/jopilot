@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}JobPilot{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🧭</text></svg>">
+    <script>
+        (function () {
+            var saved = null;
+            try { saved = localStorage.getItem('jobpilot-theme'); } catch (e) {}
+            var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+    <style>
+        {% include 'partials/styles.html.twig' %}
+        {% block styles %}{% endblock %}
+    </style>
+    {% block javascripts %}
+    {% endblock %}
+</head>
+<body>
+    <header class="app-nav">
+        <a class="brand" href="{{ path('app_home') }}">Job<span>Pilot</span></a>
+        <div class="nav-right">
+            <nav class="nav-links" aria-label="Navigation principale">
+                <a href="{{ path('app_home') }}" class="{{ active == 'home' ? 'active' }}">Accueil</a>
+                <a href="{{ path('app_assistant') }}" class="{{ active == 'assistant' ? 'active' }}">CV ↔ Offre</a>
+                <a href="{{ path('app_offer_analyser') }}" class="{{ active == 'offres' ? 'active' }}">Analyser offre</a>
+                <a href="{{ path('app_interview') }}" class="{{ active == 'entretien' ? 'active' }}">Entretien</a>
+                <a href="{{ path('app_cv_analyser') }}" class="{{ active == 'cv' ? 'active' }}">Mon CV</a>
+                <a href="{{ path('app_candidature_index') }}" class="{{ active == 'candidatures' ? 'active' }}">Candidatures</a>
+            </nav>
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Basculer le thème" title="Basculer clair / sombre">
+                <span id="theme-icon">🌙</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="alert alert-{{ label == 'error' ? 'danger' : label }}">{{ message }}</div>
+            {% endfor %}
+        {% endfor %}
+
+    {% block body %}{% endblock %}
+    </main>
+
+    <footer class="footer">© {{ "now"|date("Y") }} JobPilot · Outil perso d'aide à candidater</footer>
+
+    <script>
+        (function () {
+            var toggle = document.getElementById('theme-toggle');
+            var icon = document.getElementById('theme-icon');
+            if (!toggle) return;
+
+            var updateIcon = function (theme) {
+                icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+            };
+            updateIcon(document.documentElement.getAttribute('data-theme'));
+
+            toggle.addEventListener('click', function () {
+                var current = document.documentElement.getAttribute('data-theme');
+                var next = current === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', next);
+                try { localStorage.setItem('jobpilot-theme', next); } catch (e) {}
+                updateIcon(next);
+            });
+        })();
+    </script>
+</body>
+</html>

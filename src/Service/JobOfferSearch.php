@@ -2,28 +2,51 @@
 
 namespace App\Service;
 
-use Symfony\Contracts\HttpClient\HttpClientInterface;
+use App\Service\JobOffer\AdzunaProvider;
+use App\Service\JobOffer\CompanyDirectoryProvider;
+use App\Service\JobOffer\GeoCommuneResolver;
+use App\Service\JobOffer\JobOfferProviderInterface;
+use App\Service\JobOffer\JoobleProvider;
+use App\Service\JobOffer\SearchQuery;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Filesystem\Filesystem;
 
+/**
+ * Orchestre la recherche d'offres et d'entreprises.
+ *
+ * Le service ne connaît aucun fournisseur en particulier : il demande à
+ * Adzuna, puis bascule sur Jooble si besoin, et interroge l'annuaire des
+ * entreprises. Chaque source est isolée : une panne n'empêche pas les autres
+ * de s'afficher.
+ */
 class JobOfferSearch
 {
-    private const STOPWORDS = [
-        'de', 'des', 'du', 'et', 'en', 'la', 'le', 'les', 'un', 'une',
-        'the', 'and', 'for', 'with', 'senior', 'junior', 'développeur',
-        'developpeur', 'developer', 'développeuse', 'freelance',
-    ];
-
     private const SEARCH_LINKS = [
         'Indeed' => 'https://fr.indeed.com/jobs?q={q}&l={ville}',
         'LinkedIn Jobs' => 'https://www.linkedin.com/jobs/search/?keywords={q}&location={ville}',
         'Welcome to the Jungle' => 'https://www.welcometothejungle.com/fr/jobs?query={q}&location={ville}',
+        'HelloWork' => 'https://www.hellowork.com/fr-fr/emploi/recherche.html?k={q}&l={ville}',
         'Google Jobs' => 'https://www.google.com/search?ibp=htl;jobs&q={q} {ville}',
         'France Travail' => 'https://candidat.francetravail.fr/offres/recherche?motsCles={q}&lieux={ville}',
     ];
 
+    /** Durée de mise en cache d'un résultat complet. */
+    private const CACHE_TTL = 1800;
+
+    /** Durée réduite quand une source est en erreur (on retente plus vite). */
+    private const CACHE_TTL_ERROR = 300;
+
+    private Filesystem $filesystem;
+
     public function __construct(
-        private HttpClientInterface $httpClient,
-        private FranceTravailClient $franceTravail,
+        private AdzunaProvider $adzuna,
+        private JoobleProvider $jooble,
+        private CompanyDirectoryProvider $companies,
+        private GeoCommuneResolver $geo,
+        #[Autowire('%kernel.project_dir%/var/data/offers_cache.json')]
+        private string $cachePath,
     ) {
+        $this->filesystem = new Filesystem();
     }
 
     /**
@@ -100,183 +123,280 @@ class JobOfferSearch
     }
 
     /**
-     * Cherche des offres réelles sur une API publique (sans clé) et les filtre.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function fetchOffers(string $query, int $limit = 12): array
-    {
-        $keywords = $this->keywords($query);
-
-        if ($keywords === []) {
-            return [];
-        }
-
-        try {
-            $response = $this->httpClient->request('GET', 'https://remotive.com/api/remote-jobs', [
-                'query' => [
-                    'search' => implode(' ', array_slice($keywords, 0, 3)),
-                    'limit' => 50,
-                ],
-                'timeout' => 12,
-                'max_duration' => 15,
-            ]);
-
-            if ($response->getStatusCode() !== 200) {
-                return [];
-            }
-
-            $data = $response->toArray(false);
-            $jobs = $data['jobs'] ?? [];
-        } catch (\Throwable $e) {
-            return [];
-        }
-
-        $results = [];
-
-        foreach ($jobs as $job) {
-            if (!is_array($job)) {
-                continue;
-            }
-
-            $title = $this->text((string) ($job['title'] ?? ''));
-            $company = $this->text((string) ($job['company_name'] ?? ''));
-            $tags = is_array($job['tags'] ?? null)
-                ? array_map('strval', $job['tags'])
-                : [];
-            $haystack = strtolower($title . ' ' . $company . ' ' . implode(' ', $tags));
-
-            if (!$this->matches($haystack, $keywords)) {
-                continue;
-            }
-
-            $results[] = [
-                'title' => $title,
-                'company' => $company,
-                'url' => (string) ($job['url'] ?? '#'),
-                'location' => $this->text((string) ($job['candidate_required_location'] ?? '')),
-                'salary' => $this->text((string) ($job['salary'] ?? '')),
-                'type' => $this->text((string) ($job['job_type'] ?? '')),
-                'date' => (string) ($job['publication_date'] ?? ''),
-                'description' => $this->truncate($this->stripHtml((string) ($job['description'] ?? ''))),
-                'source' => 'À distance',
-            ];
-
-            if (count($results) >= $limit) {
-                break;
-            }
-        }
-
-        usort($results, static function (array $a, array $b): int {
-            return strcmp((string) ($b['date'] ?? ''), (string) ($a['date'] ?? ''));
-        });
-
-        return $results;
-    }
-
-    /**
-     * Recherche complète : offres locales (France Travail), offres distantes
-     * (API publique) et liens vers les plateformes d'emploi.
-     *
-     * @return array{
-     *   query: string,
-     *   ville: string,
-     *   rayon: int,
-     *   liens: array<int, array{name: string, url: string}>,
-     *   offres: array<int, array<string, mixed>>,
-     *   source_locale: string|null,
-     *   erreur_locale: string|null
-     * }
+     * @return array<string, mixed>
      */
     public function search(string $query, string $ville = '', int $rayon = 30, int $limit = 12): array
     {
         $query = trim($query);
         $ville = trim($ville);
+        $rayon = max(0, min(100, $rayon));
 
         if ($query === '') {
-            return [
-                'query' => '',
-                'ville' => $ville,
-                'rayon' => $rayon,
-                'liens' => [],
-                'offres' => [],
-                'source_locale' => null,
-                'erreur_locale' => null,
-            ];
+            return $this->emptyResult($query, $ville, $rayon);
+        }
+
+        $commune = $this->geo->resolve($ville);
+        $searchQuery = new SearchQuery($query, $ville, $commune['code'] ?? null, $rayon);
+
+        $cacheKey = $this->cacheKey($searchQuery, $limit);
+        $cached = $this->readCache($cacheKey);
+
+        if ($cached !== null) {
+            $cached['cached'] = true;
+
+            return $cached;
         }
 
         $offres = [];
-        $sourceLocale = null;
-        $erreurLocale = null;
+        $sources = [];
+        $erreurs = [];
+        $sourceOffres = null;
 
-        if ($this->franceTravail->isConfigured()) {
-            try {
-                $codeInsee = $this->franceTravail->geocode($ville);
-                $offres = $this->franceTravail->search($query, $codeInsee, $rayon, $limit);
-                $sourceLocale = 'France Travail';
-            } catch (\Throwable $e) {
-                $erreurLocale = $e->getMessage();
-                $offres = [];
+        // Adzuna d'abord : c'est la source la plus complète en France.
+        $adzunaStatus = $this->runProvider($this->adzuna, $searchQuery, $limit, $offres);
+        $sources[] = $adzunaStatus;
+
+        if ($adzunaStatus['state'] === 'error') {
+            $erreurs[] = $adzunaStatus['message'];
+        }
+
+        if ($offres !== []) {
+            $sourceOffres = $this->adzuna->label();
+        } else {
+            // Adzuna vide ou en panne : Jooble prend le relais.
+            $joobleOffres = [];
+            $joobleStatus = $this->runProvider($this->jooble, $searchQuery, $limit, $joobleOffres);
+            $sources[] = $joobleStatus;
+
+            if ($joobleStatus['state'] === 'ok' && $joobleOffres !== []) {
+                $offres = $joobleOffres;
+                $sourceOffres = $this->jooble->label();
+            } elseif ($joobleStatus['state'] === 'error') {
+                $erreurs[] = $joobleStatus['message'];
             }
         }
 
-        $distantes = $this->fetchOffers($query, $limit);
+        $offres = $this->dedupe($offres);
 
-        foreach ($distantes as $offre) {
-            $offres[] = $offre;
+        $entreprises = [];
+        $entrepriseSource = $this->companies->label();
+        $entrepriseMessage = null;
+
+        try {
+            $entreprises = $this->companies->search(
+                $searchQuery,
+                $commune['departement'] ?? null,
+                6
+            );
+
+            if ($entreprises === []) {
+                $entrepriseMessage = 'Aucune entreprise trouvée pour cette recherche.';
+            }
+        } catch (\Throwable $e) {
+            $erreurs[] = $e->getMessage();
+            $entrepriseMessage = $e->getMessage();
         }
 
+        $payload = [
+            'query' => $query,
+            'ville' => $ville,
+            'rayon' => $rayon,
+            'code_insee' => $commune['code'] ?? null,
+            'commune' => $commune['nom'] ?? null,
+            'offres' => $offres,
+            'source_offres' => $sourceOffres,
+            'entreprises' => $entreprises,
+            'entreprise_source' => $entrepriseSource,
+            'entreprise_message' => $entrepriseMessage,
+            'sources' => $sources,
+            'erreurs' => $erreurs,
+            'liens' => $this->searchLinks($query, $ville),
+            'cached' => false,
+            'generated_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
+        ];
+
+        $this->writeCache($cacheKey, $payload, $erreurs === [] ? self::CACHE_TTL : self::CACHE_TTL_ERROR);
+
+        return $payload;
+    }
+
+    /**
+     * Exécute un fournisseur et normalise son état pour l'interface.
+     *
+     * @param list<array<string, mixed>> $offres
+     * @return array{name: string, label: string, state: string, count: int, message: string|null}
+     */
+    private function runProvider(
+        JobOfferProviderInterface $provider,
+        SearchQuery $query,
+        int $limit,
+        array &$offres,
+    ): array {
+        $status = [
+            'name' => $provider->name(),
+            'label' => $provider->label(),
+            'state' => 'ok',
+            'count' => 0,
+            'message' => null,
+        ];
+
+        if (!$provider->isConfigured()) {
+            $status['state'] = 'unconfigured';
+            $status['message'] = $provider->label() . ' n’est pas configuré.';
+
+            return $status;
+        }
+
+        try {
+            $offres = $provider->search($query, $limit);
+            $status['count'] = count($offres);
+            $status['state'] = $offres === [] ? 'empty' : 'ok';
+
+            return $status;
+        } catch (\Throwable $e) {
+            $status['state'] = 'error';
+            $status['message'] = $e->getMessage();
+            $offres = [];
+
+            return $status;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $offres
+     * @return list<array<string, mixed>>
+     */
+    private function dedupe(array $offres): array
+    {
+        $seen = [];
+        $unique = [];
+
+        foreach ($offres as $offre) {
+            $url = (string) ($offre['url'] ?? '');
+
+            if ($url === '' || isset($seen[$url])) {
+                continue;
+            }
+
+            $seen[$url] = true;
+            $unique[] = $offre;
+        }
+
+        return $unique;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyResult(string $query, string $ville, int $rayon): array
+    {
         return [
             'query' => $query,
             'ville' => $ville,
             'rayon' => $rayon,
-            'liens' => $this->searchLinks($query, $ville),
-            'offres' => $offres,
-            'source_locale' => $sourceLocale,
-            'erreur_locale' => $erreurLocale,
+            'code_insee' => null,
+            'commune' => null,
+            'offres' => [],
+            'source_offres' => null,
+            'entreprises' => [],
+            'entreprise_source' => null,
+            'entreprise_message' => null,
+            'sources' => [],
+            'erreurs' => [],
+            'liens' => [],
+            'cached' => false,
+            'generated_at' => null,
         ];
     }
 
-    /**
-     * @return array<int, string>
-     */
-    private function keywords(string $query): array
+    private function cacheKey(SearchQuery $query, int $limit): string
     {
-        $raw = preg_split('/[\s,;|()\/]+/u', mb_strtolower($query)) ?: [];
-
-        $keywords = [];
-        foreach ($raw as $token) {
-            $token = trim($token, ".'\"");
-
-            if ($token === '' || in_array($token, self::STOPWORDS, true)) {
-                continue;
-            }
-
-            $keywords[] = $token;
-        }
-
-        return array_values(array_unique($keywords));
+        return sha1(implode('|', [
+            mb_strtolower($query->motsCles),
+            mb_strtolower($query->ville),
+            $query->codeInsee ?? '',
+            $query->rayon,
+            $limit,
+            // L'état de configuration fait partie de la clé : dès qu'une clé API
+            // est renseignée (ou retirée), les anciens résultats « non configuré »
+            // mis en cache ne sont plus servis.
+            $this->adzuna->isConfigured() ? 'adzuna:1' : 'adzuna:0',
+            $this->jooble->isConfigured() ? 'jooble:1' : 'jooble:0',
+        ]));
     }
 
     /**
-     * @param array<int, string> $keywords
+     * @return array<string, mixed>|null
      */
-    private function matches(string $haystack, array $keywords): bool
+    private function readCache(string $key): ?array
     {
-        foreach ($keywords as $keyword) {
-            if (str_contains($haystack, $keyword)) {
-                return true;
-            }
+        $entries = $this->readCacheFile();
+        $entry = $entries[$key] ?? null;
+
+        if (!is_array($entry) || !isset($entry['expires_at'], $entry['payload'])) {
+            return null;
         }
 
-        return false;
+        if ((int) $entry['expires_at'] < time()) {
+            return null;
+        }
+
+        return is_array($entry['payload']) ? $entry['payload'] : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function writeCache(string $key, array $payload, int $ttl): void
+    {
+        // On purge les entrées expirées à chaque écriture : le fichier
+        // reste petit sans tâche de maintenance dédiée.
+        $now = time();
+        $entries = array_filter(
+            $this->readCacheFile(),
+            static fn (mixed $entry): bool => is_array($entry) && (int) ($entry['expires_at'] ?? 0) >= $now
+        );
+
+        $entries[$key] = [
+            'expires_at' => $now + $ttl,
+            'payload' => $payload,
+        ];
+
+        try {
+            $this->filesystem->mkdir(\dirname($this->cachePath));
+            file_put_contents(
+                $this->cachePath,
+                json_encode($entries, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+            );
+        } catch (\Throwable) {
+            // Le cache est un confort : son échec ne doit jamais casser la recherche.
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readCacheFile(): array
+    {
+        if (!is_file($this->cachePath)) {
+            return [];
+        }
+
+        $content = (string) file_get_contents($this->cachePath);
+
+        if (trim($content) === '') {
+            return [];
+        }
+
+        $data = json_decode($content, true);
+
+        return is_array($data) ? $data : [];
     }
 
     private function cleanTerm(string $term): string
     {
         $term = trim($term);
 
-        // Restreint à 4.5 octets-ish : on garde les termes courts et significatifs.
         if (mb_strlen($term) > 1 && mb_strlen($term) <= 32) {
             return $term;
         }
@@ -284,28 +404,30 @@ class JobOfferSearch
         return '';
     }
 
-    private function text(string $value): string
+    /**
+     * @return array<int, string>
+     */
+    private function keywords(string $query): array
     {
-        $value = strip_tags($value);
+        $stopwords = [
+            'de', 'des', 'du', 'et', 'en', 'la', 'le', 'les', 'un', 'une',
+            'the', 'and', 'for', 'with', 'senior', 'junior', 'développeur',
+            'developpeur', 'developer', 'développeuse', 'freelance',
+        ];
 
-        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
-    }
+        $raw = preg_split('/[\s,;|()\/]+/u', mb_strtolower($query)) ?: [];
 
-    private function stripHtml(string $value): string
-    {
-        $value = preg_replace('/<br\s*\/?>/i', "\n", $value) ?? $value;
-        $value = preg_replace('/<\/p>/i', "\n", $value) ?? $value;
-        $value = strip_tags($value);
+        $keywords = [];
+        foreach ($raw as $token) {
+            $token = trim($token, ".'\"");
 
-        return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
-    }
+            if ($token === '' || in_array($token, $stopwords, true)) {
+                continue;
+            }
 
-    private function truncate(string $value, int $length = 220): string
-    {
-        if (mb_strlen($value) <= $length) {
-            return $value;
+            $keywords[] = $token;
         }
 
-        return mb_substr($value, 0, $length) . '…';
+        return array_values(array_unique($keywords));
     }
 }

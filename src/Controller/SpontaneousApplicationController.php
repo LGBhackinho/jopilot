@@ -101,6 +101,45 @@ class SpontaneousApplicationController extends AbstractController
         ]);
     }
 
+    #[Route('/depuis-entreprise', name: 'from_company', methods: ['POST'])]
+    public function fromCompany(Request $request, SpontaneousApplicationRepository $repository): Response
+    {
+        $nom = trim((string) $request->request->get('nom_societe', ''));
+
+        if ($nom === '') {
+            $this->addFlash('error', 'Le nom de la société est manquant.');
+
+            return $this->redirectToRoute('app_spontaneous_index');
+        }
+
+        // Une société déjà suivie ne doit pas être dupliquée : on ouvre
+        // directement sa lettre.
+        foreach ($repository->all() as $existing) {
+            if (mb_strtolower(trim((string) ($existing['nom_societe'] ?? ''))) === mb_strtolower($nom)) {
+                $this->addFlash('info', sprintf('« %s » est déjà dans vos candidatures spontanées.', $nom));
+
+                return $this->redirectToRoute('app_spontaneous_letter', [
+                    'id' => (string) ($existing['id'] ?? ''),
+                ]);
+            }
+        }
+
+        $item = $this->emptyItem();
+        $item['nom_societe'] = $nom;
+        $item['ville'] = trim((string) $request->request->get('ville', ''));
+        $item['secteur'] = trim((string) $request->request->get('secteur', ''));
+        $item['poste'] = trim((string) $request->request->get('poste', ''));
+        $item['notes'] = trim((string) $request->request->get('notes', ''));
+
+        $saved = $repository->save($item);
+
+        $this->addFlash('success', sprintf('« %s » ajoutée à vos candidatures spontanées.', $nom));
+
+        return $this->redirectToRoute('app_spontaneous_letter', [
+            'id' => (string) ($saved['id'] ?? ''),
+        ]);
+    }
+
     #[Route('/{id}/modifier', name: 'edit', methods: ['GET', 'POST'])]
     public function edit(string $id, Request $request, SpontaneousApplicationRepository $repository): Response
     {

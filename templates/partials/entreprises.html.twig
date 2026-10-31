@@ -1,0 +1,55 @@
+{# Partial : entreprises à cibler en candidature spontanée #}
+{# Attend : recherche = { entreprises, entreprise_source, entreprise_message, ville, query } #}
+{% if recherche.entreprises is defined and (recherche.entreprises is not empty or recherche.entreprise_message) %}
+<section class="entreprises-block">
+    <div class="entreprises-head">
+        <div>
+            <span class="eyebrow">🏢 MARCHÉ CACHÉ</span>
+            <h3>Entreprises à cibler en candidature spontanée</h3>
+            <p>
+                Employeurs réels{% if recherche.ville %} autour de {{ recherche.ville }}{% endif %},
+                via {{ recherche.entreprise_source|default('l’annuaire des entreprises') }}.
+                Ajoutez-en une pour générer sa lettre à partir de votre CV.
+            </p>
+        </div>
+    </div>
+
+    {% if recherche.entreprise_message and recherche.entreprises is empty %}
+        <div class="alert alert-info" style="font-size:12.5px">{{ recherche.entreprise_message }}</div>
+    {% endif %}
+
+    {% if recherche.entreprises is not empty %}
+        <div class="entreprise-list">
+            {% for entreprise in recherche.entreprises %}
+                <article class="entreprise-card">
+                    <div class="entreprise-main">
+                        <div class="entreprise-name">{{ entreprise.name }}</div>
+                        <div class="entreprise-meta">
+                            {% if entreprise.ville %}<span>📍 {{ entreprise.ville }}</span>{% endif %}
+                            {% if entreprise.effectif %}<span>👥 {{ entreprise.effectif }}</span>{% endif %}
+                            {% if entreprise.categorie %}<span>🏷️ {{ entreprise.categorie }}</span>{% endif %}
+                            {% if entreprise.secteur %}<span>NAF {{ entreprise.secteur }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="entreprise-actions">
+                        <a class="entreprise-link" href="{{ entreprise.url }}" target="_blank" rel="noopener noreferrer">Fiche ⇗</a>
+                        <form method="post" action="{{ path('app_spontaneous_from_company') }}">
+                            <input type="hidden" name="nom_societe" value="{{ entreprise.name }}">
+                            <input type="hidden" name="ville" value="{{ entreprise.ville }}">
+                            <input type="hidden" name="secteur" value="{{ entreprise.secteur }}">
+                            <input type="hidden" name="poste" value="{{ recherche.query }}">
+                            <input type="hidden" name="notes" value="{{ entreprise.effectif }}{% if entreprise.categorie %} · {{ entreprise.categorie }}{% endif %}{% if entreprise.siren %} · SIREN {{ entreprise.siren }}{% endif %}">
+                            <button type="submit" class="btn btn-ghost btn-sm">＋ Ajouter aux spontanées</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <p class="source-legal">
+        Annuaire officiel (INSEE, INPI, DILA). La Bonne Boîte de France Travail indique en plus les entreprises
+        à fort potentiel d’embauche, mais son API nécessite une habilitation manuelle.
+    </p>
+</section>
+{% endif %}

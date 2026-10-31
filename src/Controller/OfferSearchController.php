@@ -15,9 +15,9 @@ class OfferSearchController extends AbstractController
     {
         $session = $request->getSession();
 
-        $query = trim((string) $request->get('q', ''));
-        $ville = trim((string) $request->get('ville', ''));
-        $rayon = (int) $request->get('rayon', 30);
+        $query = trim((string) $request->query->get('q', ''));
+        $ville = trim((string) $request->query->get('ville', ''));
+        $rayon = (int) $request->query->get('rayon', 30);
 
         if ($ville === '') {
             $ville = (string) $session->get('job_ville', '');

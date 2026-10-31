@@ -1,5 +1,5 @@
 {# Partial : offres détectées pour une recherche donnée #}
-{# Attend : recherche = { query, ville, rayon, liens, offres, source_locale, erreur_locale } #}
+{# Attend : recherche = { query, ville, rayon, offres, entreprises, sources, erreurs, liens, ... } #}
 {# Optionnel : show_form (bouton/ville/rayon pour relancer) #}
 {% if recherche is defined and recherche.query|default('') != '' %}
 <section class="offres-section card">
@@ -8,7 +8,8 @@
         <h2 style="font-size:20px;margin-top:14px">Les offres qui correspondent à votre profil</h2>
         <p style="font-size:13.5px;color:var(--muted);margin:10px 0 0;display:flex;flex-wrap:wrap;gap:8px">
             <span class="badge" style="background:var(--accent-soft);color:var(--accent);font-weight:750">Requête : {{ recherche.query }}</span>
-            {% if recherche.ville %}<span class="badge" style="background:var(--success-soft);color:var(--success);font-weight:750">📍 {{ recherche.ville }} {% if recherche.rayon %}· {{ recherche.rayon }} km{% endif %}</span>{% endif %}
+            {% if recherche.ville %}<span class="badge" style="background:var(--success-soft);color:var(--success);font-weight:750">📍 {{ recherche.commune|default(recherche.ville) }} {% if recherche.rayon %}· {{ recherche.rayon }} km{% endif %}</span>{% endif %}
+            {% if recherche.cached %}<span class="badge" style="background:var(--surface-3);color:var(--muted);font-weight:650">Résultat en cache</span>{% endif %}
         </p>
     </div>
 
@@ -31,22 +32,24 @@
         </form>
     {% endif %}
 
-    {% if recherche.source_locale %}
-        <p style="font-size:13px;color:var(--text-2);margin:0 0 16px">
-            🏢 Offres <strong>locales</strong> ({{ recherche.source_locale }}) et <strong>à distance</strong>, triées par proximité.
-        </p>
-    {% elseif recherche.erreur_locale %}
-        <div class="alert alert-danger" style="font-size:13px">
-            ⚠️ Offres locales indisponibles : {{ recherche.erreur_locale }}
+    {# État de chaque source : l'utilisateur voit immédiatement ce qui a répondu. #}
+    {% if recherche.sources|default([]) is not empty %}
+        <div class="source-strip">
+            {% for source in recherche.sources %}
+                <span class="source-pill source-{{ source.state }}"
+                      title="{{ source.message|default(source.label ~ ' : ' ~ source.count ~ ' offre(s)') }}">
+                    {% if source.state == 'ok' %}✅{% elseif source.state == 'empty' %}▫️{% elseif source.state == 'unconfigured' %}⚙️{% else %}⚠️{% endif %}
+                    {{ source.label }}
+                    {% if source.state == 'ok' %}· {{ source.count }}{% endif %}
+                </span>
+            {% endfor %}
         </div>
-    {% else %}
-        <div class="alert alert-success" style="font-size:13px">
-            💡 Pour afficher les <strong>offres près de chez vous</strong>, connectez gratuitement l’API France Travail :
-            créez votre compte sur <a href="https://francetravail.io" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:750">francetravail.io</a>, puis renseignez
-            <code style="background:var(--surface);padding:2px 6px;border-radius:6px">FRANCE_TRAVAIL_CLIENT_ID</code> et
-            <code style="background:var(--surface);padding:2px 6px;border-radius:6px">FRANCE_TRAVAIL_CLIENT_SECRET</code> dans votre fichier <code style="background:var(--surface);padding:2px 6px;border-radius:6px">.env</code>.
-            En attendant, utilisez les liens ci-dessous.
-        </div>
+    {% endif %}
+
+    {% if recherche.erreurs|default([]) is not empty %}
+        {% for erreur in recherche.erreurs %}
+            <div class="alert alert-warning" style="font-size:12.5px;margin-bottom:10px">⚠️ {{ erreur }}</div>
+        {% endfor %}
     {% endif %}
 
     {% if recherche.offres|default([]) is not empty %}
@@ -54,9 +57,7 @@
             {% for offre in recherche.offres %}
                 <article class="offre-card card">
                     <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
-                        <span class="offre-source" style="
-                            {% if offre.source == 'France Travail' %}background:var(--info-soft);color:var(--info){% else %}background:var(--accent-soft);color:var(--accent){% endif %}
-                        ">{{ offre.source }}</span>
+                        <span class="offre-source" style="background:var(--accent-soft);color:var(--accent)">{{ offre.source }}</span>
                         {% if offre.type %}<span style="font-size:11.5px;color:var(--muted)">{{ offre.type }}</span>{% endif %}
                     </div>
                     <div class="offre-title">{{ offre.title }}</div>
@@ -73,19 +74,28 @@
                 </article>
             {% endfor %}
         </div>
-        {% if recherche.source_locale %}
-            <p style="font-size:12px;color:var(--muted);margin-top:14px">
-                Offres France Travail (licence de réutilisation : contenu fourni par France Travail) et offres distantes (API publique), filtrées par mots-clés.
-            </p>
-        {% endif %}
     {% else %}
-        <div class="empty" style="padding:24px 8px">
-            <span class="empty-icon">🪐</span>
-            Aucune offre correspondante trouvée pour ces mots-clés
-            {% if recherche.ville %}autour de {{ recherche.ville }}{% endif %}.
-            <br>Élargissez le rayon ou utilisez les liens ci-dessous.
-        </div>
+        {% set configurees = recherche.sources|default([])|filter(s => s.state in ['ok', 'empty', 'error'])|length %}
+        {% if configurees == 0 %}
+            <div class="alert alert-info" style="font-size:13px">
+                💡 Aucune source d’offres n’est configurée. Ajoutez dans <code>.env.local</code> :
+                <code>ADZUNA_APP_ID</code> et <code>ADZUNA_APP_KEY</code> (clé gratuite sur
+                <a href="https://developer.adzuna.com" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:750">developer.adzuna.com</a>),
+                puis éventuellement <code>JOOBLE_API_KEY</code> (sur
+                <a href="https://fr.jooble.org/api/about" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:750">fr.jooble.org</a>).
+                En attendant, utilisez les liens ci-dessous.
+            </div>
+        {% else %}
+            <div class="empty" style="padding:24px 8px">
+                <span class="empty-icon">🪐</span>
+                Aucune offre correspondante trouvée pour ces mots-clés
+                {% if recherche.ville %}autour de {{ recherche.ville }}{% endif %}.
+                <br>Élargissez le rayon ou utilisez les liens ci-dessous.
+            </div>
+        {% endif %}
     {% endif %}
+
+    {% include 'partials/entreprises.html.twig' with {'recherche': recherche} %}
 
     <div class="link-chips" style="margin-top:20px">
         {% for lien in recherche.liens|default([]) %}
@@ -96,5 +106,11 @@
             {% endif %}
         {% endfor %}
     </div>
+
+    {% if recherche.source_offres %}
+        <p class="source-legal">
+            Offres fournies par {{ recherche.source_offres }}. Les annonces renvoient vers leur plateforme d’origine.
+        </p>
+    {% endif %}
 </section>
 {% endif %}

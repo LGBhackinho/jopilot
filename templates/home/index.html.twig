@@ -1,64 +1,402 @@
 {% extends 'base.html.twig' %}
 {% set active = 'home' %}
 
-{% block title %}JobPilot — Outil d'aide à candidater{% endblock %}
+{% block title %}Tableau de bord — JobPilot{% endblock %}
 
 {% block styles %}
-.hero { padding: 40px 0 20px; }
-.hero h1 { font-size: clamp(32px, 4vw, 48px); line-height: 1.1; letter-spacing: -1.8px; margin: 16px 0 12px; }
-.hero h1 span { color: var(--accent); }
-.intro { color: var(--muted); font-size: 16px; line-height: 1.8; max-width: 640px; }
-.actions { margin-top: 22px; display: flex; gap: 12px; flex-wrap: wrap; }
-.section { padding: 36px 0; }
-.tools { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
-.tool { padding: 18px; }
-.tool h3 { margin: 8px 0 6px; font-size: 16px; }
-.tool p { margin: 0; color: var(--muted); line-height: 1.7; font-size: 14px; }
-.tool a { display: inline-flex; margin-top: 12px; color: var(--accent); font-weight: 650; }
-@media (max-width: 900px) { .tools { grid-template-columns: 1fr; } }
+.dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin: 22px 0 24px; }
+.dash-head h1 { margin: 12px 0 6px; font-size: clamp(26px, 3.2vw, 34px); }
+.dash-head p { margin: 0; color: var(--muted); font-size: 14px; }
+.dash-head .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1080px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { display: flex; flex-direction: column; gap: 9px; padding: 16px 17px; position: relative; overflow: hidden; }
+.kpi-top { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.kpi-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.kpi-value { font-size: 30px; font-weight: 850; letter-spacing: -1.2px; line-height: 1; color: var(--text); }
+.kpi-sub { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.kpi.is-danger { border-color: color-mix(in srgb, var(--danger) 28%, transparent); }
+.kpi.is-danger .kpi-icon { background: var(--danger-soft); }
+.kpi.is-danger .kpi-value { color: var(--danger); }
+.kpi.is-warn { border-color: color-mix(in srgb, var(--warn) 28%, transparent); }
+.kpi.is-warn .kpi-icon { background: var(--warn-soft); }
+.kpi.is-warn .kpi-value { color: var(--warn); }
+.kpi.is-success .kpi-icon { background: var(--success-soft); }
+.kpi.is-success .kpi-value { color: var(--success); }
+.kpi.is-info .kpi-icon { background: var(--info-soft); }
+.kpi.is-info .kpi-value { color: var(--info); }
+
+.cv-strip { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; padding: 13px 17px; }
+.cv-strip .cv-info { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--text-2); line-height: 1.5; min-width: 0; }
+.cv-strip .cv-info strong { color: var(--text); }
+.cv-strip .cv-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--success-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cv-strip.is-missing .cv-icon { background: var(--danger-soft); }
+.cv-strip .cv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start; }
+@media (max-width: 980px) { .dash-grid { grid-template-columns: 1fr; } }
+.dash-stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.card-head h2 { font-size: 16px; margin: 0; }
+.card-head p { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.card-head a { font-size: 12.5px; font-weight: 750; color: var(--accent); white-space: nowrap; }
+
+.week-chart { display: flex; align-items: flex-end; gap: 10px; min-height: 168px; padding-top: 4px; }
+.week-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.week-value { font-size: 11px; font-weight: 750; color: var(--muted); height: 14px; }
+.week-track { width: 100%; max-width: 44px; height: 122px; display: flex; align-items: flex-end; background: var(--surface-3); border-radius: 9px; overflow: hidden; }
+.week-stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 9px; overflow: hidden; }
+.week-seg { width: 100%; }
+.week-seg.cand { background: var(--accent); }
+.week-seg.spont { background: var(--info); }
+.week-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+.donut-layout { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+.donut { width: 154px; height: 154px; border-radius: 50%; position: relative; flex-shrink: 0; }
+.donut::after { content: ''; position: absolute; inset: 26px; border-radius: 50%; background: var(--surface); }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1; }
+.donut-center strong { font-size: 26px; line-height: 1; }
+.donut-center span { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.donut-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 180px; }
+.donut-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.donut-row .count { margin-left: auto; font-weight: 750; color: var(--text); }
+.donut-row .percent { font-size: 11px; color: var(--muted); width: 34px; text-align: right; }
+
+.todo-item { display: flex; gap: 12px; padding: 13px 14px; border-radius: 13px; border: 1px solid var(--border); background: var(--surface-3); }
+.todo-item + .todo-item { margin-top: 10px; }
+.todo-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--surface); flex-shrink: 0; font-size: 16px; }
+.todo-body { min-width: 0; }
+.todo-item h3 { margin: 0 0 3px; font-size: 13.5px; line-height: 1.4; }
+.todo-item p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.todo-item a { display: inline-flex; margin-top: 7px; font-size: 12.5px; font-weight: 750; color: var(--accent); }
+.todo-item.danger { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 26%, transparent); }
+.todo-item.danger a { color: var(--danger); }
+.todo-item.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+.todo-item.warn a { color: var(--warn); }
+.todo-item.info { background: var(--info-soft); border-color: color-mix(in srgb, var(--info) 26%, transparent); }
+.todo-item.info a { color: var(--info); }
+.todo-item.success { background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 26%, transparent); }
+.todo-item.success a { color: var(--success); }
+
+.mini-status + .mini-status { margin-top: 11px; }
+.mini-status-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12.5px; }
+.mini-status-head span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 650; }
+.mini-status-head strong { font-size: 12px; color: var(--text); }
+.mini-bar { height: 7px; border-radius: 10px; background: var(--surface-2); margin-top: 6px; overflow: hidden; }
+.mini-bar span { display: block; height: 100%; border-radius: 10px; }
+
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quick-link { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-3); font-size: 12.5px; font-weight: 700; transition: border-color .15s, color .15s, transform .15s; }
+.quick-link:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.quick-link span { font-size: 17px; }
+
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.timeline li:last-child { border-bottom: 0; padding-bottom: 0; }
+.timeline-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--surface-3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; }
+.timeline-body { min-width: 0; flex: 1; }
+.timeline-title { font-size: 13.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.timeline-time { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.empty-compact { padding: 22px 8px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.empty-compact .empty-icon { display: block; font-size: 26px; margin-bottom: 8px; }
 {% endblock %}
 
 {% block body %}
-<section class="hero">
-    <span class="eyebrow">OUTIL PERSO D'AIDE À CANDIDATER</span>
-    <h1>Analyser, matcher, adapter, <span>candidater</span></h1>
-    <p class="intro">
-        Un outil simple pour t'aider à trouver et cibler des annonces, analyser ton CV face à une offre,
-        générer une lettre de motivation strictement à partir de ton CV, et t'entraîner aux entretiens.
-        Alimenté par IA, avec API Albert en priorité ou ton provider au choix.
-    </p>
+<div class="dash-head">
+    <div>
+        <span class="eyebrow">TABLEAU DE BORD</span>
+        <h1>Bonjour 👋</h1>
+        <p>Votre recherche de poste en un coup d’œil — {{ dashboard.today|date('d/m/Y') }}.</p>
+    </div>
     <div class="actions">
-        <a class="btn btn-primary" href="{{ path('app_assistant') }}">CV ↔ Offre →</a>
-        <a class="btn btn-ghost" href="{{ path('app_offer_analyser') }}">Analyser une annonce</a>
-        <a class="btn btn-ghost" href="{{ path('app_interview') }}">Préparer un entretien</a>
-        <a class="btn btn-ghost" href="{{ path('app_candidature_index') }}">Mes candidatures</a>
+        <a class="btn btn-primary" href="{{ path('app_assistant') }}">🎯 Matcher une offre</a>
+        <a class="btn btn-ghost" href="{{ path('app_cv_analyser', {tab: 'offres'}) }}">🔎 Chercher des offres</a>
     </div>
-</section>
+</div>
 
-<section class="section">
-    <div class="section-head">
-        <h2 style="margin:0">Outils</h2>
-        <p class="muted">Pragmatique, sans fioritures.</p>
+<div class="kpis">
+    <article class="card kpi">
+        <div class="kpi-top"><span class="kpi-icon">📨</span> Candidatures actives</div>
+        <div class="kpi-value">{{ dashboard.candidatures.active }}</div>
+        <div class="kpi-sub">sur {{ dashboard.candidatures.total }} au total</div>
+    </article>
+
+    <article class="card kpi {{ dashboard.candidatures.interviews > 0 ? 'is-warn' : '' }}">
+        <div class="kpi-top"><span class="kpi-icon">🗣️</span> Entretiens</div>
+        <div class="kpi-value">{{ dashboard.candidatures.interviews }}</div>
+        <div class="kpi-sub">en cours de processus</div>
+    </article>
+
+    <article class="card kpi {{ dashboard.candidatures.relances_retard|length > 0 ? 'is-danger' : '' }}">
+        <div class="kpi-top"><span class="kpi-icon">⏰</span> Relances en retard</div>
+        <div class="kpi-value">{{ dashboard.candidatures.relances_retard|length }}</div>
+        <div class="kpi-sub">
+            {% if dashboard.candidatures.relances_proches|length > 0 %}
+                + {{ dashboard.candidatures.relances_proches|length }} dans les 7 jours
+            {% else %}
+                aucune relance proche
+            {% endif %}
+        </div>
+    </article>
+
+    <article class="card kpi {{ dashboard.spontaneous.en_cours > 0 ? 'is-info' : '' }}">
+        <div class="kpi-top"><span class="kpi-icon">📮</span> Spontanées en cours</div>
+        <div class="kpi-value">{{ dashboard.spontaneous.en_cours }}</div>
+        <div class="kpi-sub">sur {{ dashboard.spontaneous.total }} sociétés suivies</div>
+    </article>
+
+    <article class="card kpi {{ dashboard.ai.total > 0 ? 'is-success' : '' }}">
+        <div class="kpi-top"><span class="kpi-icon">✨</span> Propositions IA</div>
+        <div class="kpi-value">{{ dashboard.ai.total }}</div>
+        <div class="kpi-sub">{{ dashboard.ai.total > 0 ? 'enregistrées et réutilisables' : 'aucune pour le moment' }}</div>
+    </article>
+</div>
+
+<div class="card cv-strip {{ dashboard.cv.has_cv ? '' : 'is-missing' }}">
+    <div class="cv-info">
+        <span class="cv-icon">{{ dashboard.cv.has_cv ? '📄' : '⚠️' }}</span>
+        <div>
+            {% if dashboard.cv.has_cv %}
+                <strong>CV enregistré</strong>
+                {% if dashboard.cv.filename %}· {{ dashboard.cv.filename }}{% endif %}
+                <br>
+                {% if dashboard.cv.analysis_current %}
+                    Analyse à jour du {{ dashboard.cv.analysis_at|date('d/m/Y à H:i') }}.
+                {% elseif dashboard.cv.analysis_outdated %}
+                    Dernière analyse le {{ dashboard.cv.latest_analysis_at|date('d/m/Y à H:i') }} — à relancer car le CV a changé.
+                {% else %}
+                    Aucune analyse enregistrée pour ce CV.
+                {% endif %}
+            {% else %}
+                <strong>Aucun CV enregistré</strong><br>
+                Importez-le pour activer l’analyse, le matching et les lettres.
+            {% endif %}
+        </div>
     </div>
-    <div class="tools">
-        <article class="card tool">
-            <span>🧾</span>
-            <h3>Mon CV</h3>
-            <p>Extrais ton CV en texte, visualise-le et génère des mots-clés utiles pour cibler tes recherches.</p>
-            <a href="{{ path('app_cv_analyser') }}">Ouvrir →</a>
-        </article>
-        <article class="card tool">
-            <span>🎯</span>
-            <h3>Assistant CV & Lettre</h3>
-            <p>Score d'adéquation, écarts, conseils concrets. Lettre rédigée uniquement à partir de ton CV, orientée par l'annonce.</p>
-            <a href="{{ path('app_assistant') }}">Matcher & générer →</a>
-        </article>
-        <article class="card tool">
-            <span>🗣️</span>
-            <h3>Entretien</h3>
-            <p>Questions adaptées à l'offre et à ton CV, entraînement avec retour factuel.</p>
-            <a href="{{ path('app_interview') }}">S'entraîner →</a>
-        </article>
+    <div class="cv-actions">
+        <a class="btn btn-ghost btn-sm" href="{{ path('app_cv_analyser') }}">Ouvrir Mon CV</a>
+        {% if dashboard.cv.has_cv %}
+            <a class="btn btn-primary btn-sm" href="{{ path('app_cv_analyser', {tab: 'analyse'}) }}">
+                {{ dashboard.cv.analysis_current ? 'Voir l’analyse' : 'Analyser mon CV' }}
+            </a>
+        {% endif %}
     </div>
-</section>
+</div>
+
+<div class="dash-grid">
+    <div class="dash-stack">
+        <section class="card">
+            <div class="card-head">
+                <div>
+                    <h2>Activité des 8 dernières semaines</h2>
+                    <p>Candidatures enregistrées et sociétés ajoutées en spontané.</p>
+                </div>
+                <a href="{{ path('app_candidature_index') }}">Voir le suivi →</a>
+            </div>
+
+            {% if dashboard.activity.max > 0 %}
+                <div class="week-chart" role="img" aria-label="Activité hebdomadaire sur huit semaines">
+                    {% for week in dashboard.activity.weeks %}
+                        <div class="week-col" title="Semaine du {{ week.start|date('d/m/Y') }} : {{ week.candidatures }} candidature(s), {{ week.spontanees }} spontanée(s)">
+                            <div class="week-value">{{ week.total > 0 ? week.total : '' }}</div>
+                            <div class="week-track">
+                                <div class="week-stack" style="height: {{ week.height }}%">
+                                    <div class="week-seg cand" style="height: {{ week.candidatures_share }}%"></div>
+                                    <div class="week-seg spont" style="height: {{ week.spontanees_share }}%"></div>
+                                </div>
+                            </div>
+                            <div class="week-label">{{ week.label }}</div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="legend">
+                    <span><i class="dot" style="background:var(--accent)"></i> Candidatures</span>
+                    <span><i class="dot" style="background:var(--info)"></i> Spontanées</span>
+                    <span style="margin-left:auto">Cette semaine : <strong>{{ dashboard.activity.current }}</strong> · précédente : {{ dashboard.activity.previous }}</span>
+                </div>
+            {% else %}
+                <div class="empty-compact">
+                    <span class="empty-icon">📈</span>
+                    Aucune activité sur les 8 dernières semaines.<br>
+                    Ajoutez une candidature ou une société pour voir votre progression ici.
+                </div>
+            {% endif %}
+        </section>
+
+        <div class="dash-grid" style="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 0;">
+            <section class="card">
+                <div class="card-head">
+                    <div>
+                        <h2>Pipeline candidatures</h2>
+                        <p>Répartition par statut.</p>
+                    </div>
+                </div>
+
+                {% if dashboard.donut.total > 0 %}
+                    <div class="donut-layout">
+                        <div class="donut" style="background: {{ dashboard.donut.gradient }}">
+                            <div class="donut-center">
+                                <strong>{{ dashboard.donut.total }}</strong>
+                                <span>candidatures</span>
+                            </div>
+                        </div>
+                        <div class="donut-legend">
+                            {% for row in dashboard.donut.legend %}
+                                <div class="donut-row">
+                                    <i class="dot" style="background: {{ row.color }}"></i>
+                                    {{ row.label }}
+                                    <span class="count">{{ row.count }}</span>
+                                    <span class="percent">{{ row.percent }}%</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="empty-compact">
+                        <span class="empty-icon">🧭</span>
+                        Aucune candidature suivie pour le moment.<br>
+                        <a href="{{ path('app_candidature_new') }}" style="color:var(--accent);font-weight:750">Ajouter ma première candidature</a>
+                    </div>
+                {% endif %}
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <div>
+                        <h2>Suivi spontané</h2>
+                        <p>{{ dashboard.spontaneous.total }} société(s) · {{ dashboard.spontaneous.lettres }} lettre(s) rédigée(s).</p>
+                    </div>
+                </div>
+
+                {% if dashboard.spontaneous.total > 0 %}
+                    {% for status, row in dashboard.spontaneous.by_status %}
+                        {% if row.count > 0 %}
+                            <div class="mini-status">
+                                <div class="mini-status-head">
+                                    <span>{{ row.icon }} {{ row.label }}</span>
+                                    <strong>{{ row.count }}</strong>
+                                </div>
+                                <div class="mini-bar">
+                                    <span style="width: {{ row.percent }}%; background: {{ row.color }}"></span>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    <div class="legend" style="margin-top:14px">
+                        <span>✅ {{ dashboard.spontaneous.positives }} réponse(s) positive(s)</span>
+                        <span>❌ {{ dashboard.spontaneous.negatives }} négative(s)</span>
+                    </div>
+                {% else %}
+                    <div class="empty-compact">
+                        <span class="empty-icon">📮</span>
+                        Aucune candidature spontanée suivie.<br>
+                        <a href="{{ path('app_spontaneous_index') }}" style="color:var(--accent);font-weight:750">Ouvrir le suivi</a>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+
+        <section class="card">
+            <div class="card-head">
+                <div>
+                    <h2>Dernières activités</h2>
+                    <p>Vos mises à jour et les propositions IA enregistrées.</p>
+                </div>
+            </div>
+
+            {% if dashboard.timeline is not empty %}
+                <ul class="timeline">
+                    {% for item in dashboard.timeline %}
+                        <li>
+                            <span class="timeline-icon">{{ item.icon }}</span>
+                            <div class="timeline-body">
+                                <div class="timeline-title">
+                                    <a href="{{ path(item.route, item.params) }}">{{ item.title }}</a>
+                                </div>
+                                <div class="timeline-sub">{{ item.subtitle }}</div>
+                            </div>
+                            <span class="timeline-time">{{ item.at|date('d/m H:i') }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="empty-compact">
+                    <span class="empty-icon">🕘</span>
+                    Rien à afficher pour le moment. Vos actions apparaîtront ici.
+                </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="dash-stack">
+        <section class="card">
+            <div class="card-head">
+                <div>
+                    <h2>À faire maintenant</h2>
+                    <p>Les actions les plus utiles selon vos données.</p>
+                </div>
+            </div>
+
+            {% for todo in dashboard.todos %}
+                <article class="todo-item {{ todo.level }}">
+                    <span class="todo-icon">{{ todo.icon }}</span>
+                    <div class="todo-body">
+                        <h3>{{ todo.title }}</h3>
+                        <p>{{ todo.text }}</p>
+                        <a href="{{ path(todo.route, todo.params) }}">{{ todo.cta }} →</a>
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
+
+        <section class="card">
+            <div class="card-head">
+                <div>
+                    <h2>Accès rapide</h2>
+                    <p>Les outils du quotidien.</p>
+                </div>
+            </div>
+            <div class="quick-grid">
+                <a class="quick-link" href="{{ path('app_cv_analyser') }}"><span>📄</span> Mon CV</a>
+                <a class="quick-link" href="{{ path('app_cv_analyser', {tab: 'offres'}) }}"><span>🔎</span> Offres</a>
+                <a class="quick-link" href="{{ path('app_assistant') }}"><span>🎯</span> CV ↔ offre</a>
+                <a class="quick-link" href="{{ path('app_offer_analyser') }}"><span>🧠</span> Analyser une offre</a>
+                <a class="quick-link" href="{{ path('app_interview') }}"><span>🗣️</span> Entretien</a>
+                <a class="quick-link" href="{{ path('app_candidature_index') }}"><span>📨</span> Candidatures</a>
+                <a class="quick-link" href="{{ path('app_spontaneous_index') }}"><span>📮</span> Spontanées</a>
+                <a class="quick-link" href="{{ path('app_candidature_new') }}"><span>➕</span> Nouvelle candidature</a>
+            </div>
+        </section>
+
+        {% if dashboard.ai.total > 0 %}
+            <section class="card">
+                <div class="card-head">
+                    <div>
+                        <h2>Propositions IA enregistrées</h2>
+                        <p>Réutilisables sans nouvel appel tant que les données ne changent pas.</p>
+                    </div>
+                </div>
+                {% for row in dashboard.ai.by_namespace %}
+                    <div class="mini-status">
+                        <div class="mini-status-head">
+                            <span>{{ row.icon }} {{ row.label }}</span>
+                            <strong>{{ row.count }}</strong>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% if dashboard.ai.last_at %}
+                    <div class="legend" style="margin-top:12px">
+                        <span>Dernière génération : {{ dashboard.ai.last_at|date('d/m/Y à H:i') }}</span>
+                    </div>
+                {% endif %}
+            </section>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

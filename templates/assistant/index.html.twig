@@ -53,13 +53,13 @@
 
 <div class="layout">
     <div>
-        <form class="card" method="post" enctype="multipart/form-data">
+        <form class="card" method="post" enctype="multipart/form-data" data-ai-loading="Traitement IA en cours…">
             <div class="input-row">
                 <div class="form-group">
                     <label for="cv_file">Importer / remplacer votre CV (PDF, optionnel)</label>
                     <input type="file" id="cv_file" name="cv_file" accept="application/pdf,.pdf">
                 </div>
-                <button type="submit" class="btn btn-ghost" name="action" value="match">
+                <button type="submit" class="btn btn-ghost" name="action" value="match" data-ai-loading="Extraction du CV et analyse en cours…">
                     ⬆️ Extraire le PDF
                 </button>
             </div>
@@ -87,10 +87,10 @@
             </div>
 
             <div class="tabs">
-                <button class="btn btn-primary tab-btn" type="submit" name="action" value="match" id="btn-match">
+                <button class="btn btn-primary tab-btn" type="submit" name="action" value="match" id="btn-match" data-ai-loading="Analyse de l’adéquation CV ↔ offre en cours…">
                     🎯 Analyser l’adéquation
                 </button>
-                <button class="btn btn-ghost tab-btn" type="submit" name="action" value="lettre" id="btn-lettre">
+                <button class="btn btn-ghost tab-btn" type="submit" name="action" value="lettre" id="btn-lettre" data-ai-loading="Rédaction de la lettre en cours…">
                     ✍️ Générer la lettre
                 </button>
             </div>
@@ -99,6 +99,19 @@
 
     <div>
         {% if resultat %}
+            {% if generated_at %}
+                <div class="cache-note {{ from_cache ? '' : 'is-fresh' }}">
+                    <span>{{ from_cache ? '💾' : '✨' }}</span>
+                    <div>
+                        {% if from_cache %}
+                            <strong>Proposition enregistrée réutilisée</strong> — générée le {{ generated_at|date('d/m/Y à H:i') }}.
+                            Aucune nouvelle donnée détectée : l’IA n’a pas été rappelée.
+                        {% else %}
+                            <strong>Proposition générée</strong> le {{ generated_at|date('d/m/Y à H:i') }} et enregistrée.
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
             {% if action == 'lettre' %}
                 <div class="card">
                     <div class="result-block">
@@ -118,6 +131,15 @@
                             <ul>{% for e in resultat.elements_reutilises %}<li>{{ e }}</li>{% endfor %}</ul>
                         </div>
                     {% endif %}
+                    <form method="post" style="margin-top:14px">
+                        <input type="hidden" name="action" value="lettre">
+                        <input type="hidden" name="force" value="1">
+                        <input type="hidden" name="cv_text" value="{{ cv_text }}">
+                        <input type="hidden" name="offre" value="{{ offre }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" data-ai-loading="Nouvelle rédaction de la lettre en cours…">
+                            🔄 Régénérer la lettre
+                        </button>
+                    </form>
                 </div>
             {% else %}
                 <div class="card">
@@ -167,6 +189,15 @@
                     <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
                         <button class="btn btn-primary btn-sm" type="button" id="auto-lettre">✍️ Générer la lettre maintenant</button>
                     </div>
+                    <form method="post" style="margin-top:12px">
+                        <input type="hidden" name="action" value="match">
+                        <input type="hidden" name="force" value="1">
+                        <input type="hidden" name="cv_text" value="{{ cv_text }}">
+                        <input type="hidden" name="offre" value="{{ offre }}">
+                        <button type="submit" class="btn btn-ghost btn-sm" data-ai-loading="Nouvelle analyse de l’adéquation en cours…">
+                            🔄 Relancer l’analyse
+                        </button>
+                    </form>
                 </div>
             {% endif %}
         {% else %}
@@ -183,16 +214,18 @@
 {% block javascripts %}
 {{ parent() }}
 <script>
-    document.getElementById('copy-lettre')?.addEventListener('click', function () {
-        const text = document.getElementById('lettre-box')?.innerText || '';
-        navigator.clipboard.writeText(text).then(function () {
-            this.textContent = '✅ Copié';
-        }.bind(this));
-    });
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('copy-lettre')?.addEventListener('click', function () {
+            const text = document.getElementById('lettre-box')?.innerText || '';
+            navigator.clipboard.writeText(text).then(function () {
+                this.textContent = '✅ Copié';
+            }.bind(this));
+        });
 
-    document.getElementById('auto-lettre')?.addEventListener('click', function () {
-        const btn = document.getElementById('btn-lettre');
-        btn.click();
+        document.getElementById('auto-lettre')?.addEventListener('click', function () {
+            const btn = document.getElementById('btn-lettre');
+            btn.click();
+        });
     });
 </script>
 {% endblock %}

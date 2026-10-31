@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Repository\AiResultRepository;
 use App\Repository\CvProfileRepository;
 use App\Repository\SpontaneousApplicationRepository;
 use App\Service\ApplicationAssistant;
@@ -313,6 +314,7 @@ class SpontaneousApplicationController extends AbstractController
         ApplicationAssistant $assistant,
         CvPdfTextExtractor $extractor,
         CvProfileRepository $cvProfile,
+        AiResultRepository $aiResults,
     ): Response {
         $item = $repository->find($id);
 
@@ -363,6 +365,11 @@ class SpontaneousApplicationController extends AbstractController
 
             $cvText = trim((string) $request->request->get('cv_text', ''));
             $fichier = $request->files->get('cv_file');
+            $poste = trim((string) $request->request->get('poste', ''));
+            $competences = trim((string) $request->request->get('competences', ''));
+            $motivation = trim((string) $request->request->get('motivation', ''));
+            $nomCandidat = trim((string) $request->request->get('nom_candidat', ''));
+            $force = (bool) $request->request->get('force', false) || $action === 'regenerate';
 
             // Le CV enregistré sert de secours si le champ a été vidé côté navigateur.
             if ($cvText === '' && !$fichier instanceof UploadedFile) {
@@ -400,14 +407,38 @@ class SpontaneousApplicationController extends AbstractController
                     return $this->redirectToRoute('app_spontaneous_letter', ['id' => $id]);
                 }
 
-                $resultat = $assistant->spontaneousCoverLetter(
-                    $cvText,
-                    $item,
-                    $poste,
-                    $competences,
-                    $motivation,
-                    $nomCandidat
-                );
+                // Empreinte de toutes les données utilisées par l'IA : la lettre
+                // n'est régénérée que si l'une d'elles change.
+                $input = [
+                    'cv_text' => $cvText,
+                    'societe' => (string) ($item['nom_societe'] ?? ''),
+                    'contact' => (string) ($item['contact'] ?? ''),
+                    'ville' => (string) ($item['ville'] ?? ''),
+                    'secteur' => (string) ($item['secteur'] ?? ''),
+                    'poste' => $poste,
+                    'competences' => $competences,
+                    'motivation' => $motivation,
+                    'nom_candidat' => $nomCandidat,
+                ];
+
+                $cached = $force ? null : $aiResults->get('spontaneous_letter', $input);
+
+                if ($cached !== null) {
+                    $resultat = $cached['data'];
+                } else {
+                    $resultat = $assistant->spontaneousCoverLetter(
+                        $cvText,
+                        $item,
+                        $poste,
+                        $competences,
+                        $motivation,
+                        $nomCandidat
+                    );
+
+                    $aiResults->save('spontaneous_letter', $input, $resultat, [
+                        'societe' => (string) ($item['nom_societe'] ?? ''),
+                    ]);
+                }
 
                 $item['lettre_objet'] = trim((string) ($resultat['objet'] ?? ''));
                 $item['lettre_texte'] = trim((string) ($resultat['lettre'] ?? ''));
@@ -417,7 +448,9 @@ class SpontaneousApplicationController extends AbstractController
                 $item['lettre_avertissements'] = is_array($resultat['avertissements'] ?? null)
                     ? $resultat['avertissements']
                     : [];
-                $item['lettre_generee_at'] = (new \DateTimeImmutable())->format(\DATE_ATOM);
+                $item['lettre_generee_at'] = $cached !== null
+                    ? (string) ($cached['updated_at'] ?? (new \DateTimeImmutable())->format(\DATE_ATOM))
+                    : (new \DateTimeImmutable())->format(\DATE_ATOM);
                 $item['lettre_poste'] = $poste;
                 $item['lettre_competences'] = $competences;
                 $item['lettre_motivation'] = $motivation;
@@ -428,7 +461,12 @@ class SpontaneousApplicationController extends AbstractController
                 }
 
                 $repository->save($item);
-                $this->addFlash('success', 'Lettre de candidature spontanée générée.');
+                $this->addFlash(
+                    'success',
+                    $cached !== null
+                        ? 'Lettre déjà générée à partir de ces informations : elle a été réutilisée sans nouvel appel IA.'
+                        : 'Lettre de candidature spontanée générée.'
+                );
 
                 return $this->redirectToRoute('app_spontaneous_letter', ['id' => $id]);
             } catch (\Throwable $e) {

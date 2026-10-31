@@ -203,23 +203,25 @@
 {% block javascripts %}
 {{ parent() }}
 <script>
-    document.querySelectorAll('.status-select').forEach(function (select) {
-        select.addEventListener('change', function () {
-            const id = this.dataset.id;
-            const statut = this.value;
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.status-select').forEach(function (select) {
+            select.addEventListener('change', function () {
+                const id = this.dataset.id;
+                const statut = this.value;
 
-            fetch('{{ path('app_candidature_statut', {id: '__ID__'}) }}'.replace('__ID__', id), {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: new URLSearchParams({ statut: statut })
-            })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.status === 'success') {
-                    window.location.reload();
-                }
-            })
-            .catch(function () { window.location.reload(); });
+                fetch('{{ path('app_candidature_statut', {id: '__ID__'}) }}'.replace('__ID__', id), {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new URLSearchParams({ statut: statut })
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === 'success') {
+                        window.location.reload();
+                    }
+                })
+                .catch(function () { window.location.reload(); });
+            });
         });
     });
 </script>

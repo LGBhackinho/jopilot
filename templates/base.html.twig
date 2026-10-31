@@ -70,5 +70,71 @@
             });
         })();
     </script>
+
+    <script>
+        (function () {
+            var overlay = null;
+            var messageEl = null;
+
+            function getOverlay() {
+                if (overlay) return overlay;
+
+                overlay = document.createElement('div');
+                overlay.className = 'ai-overlay';
+                overlay.setAttribute('role', 'status');
+                overlay.setAttribute('aria-live', 'polite');
+                overlay.hidden = true;
+
+                var card = document.createElement('div');
+                card.className = 'ai-loader-card';
+
+                var spinner = document.createElement('div');
+                spinner.className = 'spinner';
+
+                messageEl = document.createElement('strong');
+                messageEl.textContent = 'Traitement en cours…';
+
+                var hint = document.createElement('p');
+                hint.textContent = 'Cela peut prendre quelques secondes, merci de patienter.';
+
+                card.appendChild(spinner);
+                card.appendChild(messageEl);
+                card.appendChild(hint);
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+
+                return overlay;
+            }
+
+            document.addEventListener('submit', function (event) {
+                var form = event.target;
+
+                if (!form || form.tagName !== 'FORM') {
+                    return;
+                }
+
+                var submitter = event.submitter || null;
+                var message = submitter && submitter.dataset ? submitter.dataset.aiLoading : null;
+
+                if (!message && form.dataset) {
+                    message = form.dataset.aiLoading;
+                }
+
+                if (!message) {
+                    return;
+                }
+
+                var node = getOverlay();
+                messageEl.textContent = message;
+                node.hidden = false;
+            });
+
+            window.addEventListener('pageshow', function () {
+                if (overlay) {
+                    overlay.hidden = true;
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

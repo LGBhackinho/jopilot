@@ -29,14 +29,14 @@
 
 <div class="layout">
     <div>
-        <form class="card" method="post">
+        <form class="card" method="post" data-ai-loading="Analyse de l’annonce en cours…">
             <div class="form-group">
                 <label for="offre">Texte de l’annonce</label>
                 <textarea id="offre" name="offre" class="textarea-lg" required
                           placeholder="Copiez ici le corps de l’annonce (compétences, missions, profil recherché, conditions…).">{{ offre }}</textarea>
                 <div class="form-help">Le contenu n’est pas modifié : l’IA analyse le texte tel qu’il est collé.</div>
             </div>
-            <button type="submit" class="btn btn-primary">✨ Analyser l’annonce</button>
+            <button type="submit" class="btn btn-primary" data-ai-loading="Analyse de l’annonce en cours…">✨ Analyser l’annonce</button>
         </form>
     </div>
 
@@ -47,6 +47,19 @@
 
         {% if resultat %}
             <div class="card">
+                {% if analyse_at %}
+                    <div class="cache-note {{ analyse_from_cache ? '' : 'is-fresh' }}">
+                        <span>{{ analyse_from_cache ? '💾' : '✨' }}</span>
+                        <div>
+                            {% if analyse_from_cache %}
+                                <strong>Analyse enregistrée réutilisée</strong> — générée le {{ analyse_at|date('d/m/Y à H:i') }}.
+                                Aucune nouvelle donnée détectée : l’IA n’a pas été rappelée.
+                            {% else %}
+                                <strong>Analyse générée</strong> le {{ analyse_at|date('d/m/Y à H:i') }} et enregistrée.
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
                 <div class="result-block">
                     <h3>Le poste</h3>
                     <p><strong>{{ resultat.poste|default('—') }}</strong></p>
@@ -139,6 +152,13 @@
                     <a class="btn btn-primary btn-sm" href="{{ path('app_candidature_new', pre) }}">
                         📋 Créer une candidature avec ces données
                     </a>
+                    <form method="post" style="display:inline">
+                        <input type="hidden" name="offre" value="{{ offre }}">
+                        <input type="hidden" name="force" value="1">
+                        <button type="submit" class="btn btn-ghost btn-sm" data-ai-loading="Nouvelle analyse de l’annonce en cours…">
+                            🔄 Relancer l’analyse
+                        </button>
+                    </form>
                 </div>
             </div>
         {% else %}

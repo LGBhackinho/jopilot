@@ -280,3 +280,63 @@ h3 { color: var(--text); }
 .offre-card .offre-desc { font-size: 13px; color: var(--muted); line-height: 1.7; }
 .offre-card .offre-link { margin-top: auto; font-size: 13px; font-weight: 750; color: var(--accent); }
 .offre-source { font-size: 11px; font-weight: 750; padding: 3px 9px; border-radius: 20px; }
+
+.cache-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: 11px;
+    margin-bottom: 18px;
+    background: var(--success-soft);
+    color: var(--success);
+    font-size: 13px;
+    line-height: 1.65;
+}
+.cache-note.is-fresh { background: var(--accent-soft); color: var(--accent); }
+
+/* Chargement lors d'un appel IA ou d'une recherche */
+.ai-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    animation: ai-fade-in .15s ease;
+}
+.ai-overlay[hidden] { display: none; }
+.ai-loader-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    max-width: 380px;
+    width: 100%;
+    padding: 28px 26px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+}
+.ai-loader-card strong { font-size: 15.5px; line-height: 1.5; color: var(--text); }
+.ai-loader-card p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.spinner {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 4px solid var(--accent-soft);
+    border-top-color: var(--accent);
+    animation: ai-spin .8s linear infinite;
+}
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+@keyframes ai-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .spinner { animation-duration: 2s; }
+    .ai-overlay { animation: none; }
+}

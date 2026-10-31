@@ -117,7 +117,8 @@
             </div>
 
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <button type="submit" class="btn btn-primary" name="action" value="generate">✍️ Générer la lettre</button>
+                <button type="submit" class="btn btn-primary" name="action" value="generate" data-ai-loading="Rédaction de votre lettre en cours…">✍️ Générer la lettre</button>
+                <button type="submit" class="btn btn-ghost" name="action" value="regenerate" data-ai-loading="Nouvelle rédaction de votre lettre en cours…">🔄 Régénérer</button>
                 <button type="submit" class="btn btn-ghost" name="action" value="save_cv">💾 Enregistrer mon CV</button>
             </div>
             <div class="field-help-inline" style="margin-top:10px">
@@ -209,22 +210,24 @@
 {% block javascripts %}
 {{ parent() }}
 <script>
-    document.getElementById('copy-lettre')?.addEventListener('click', function () {
-        const text = document.getElementById('lettre_texte')?.value || '';
-        if (!text) {
-            return;
-        }
-        navigator.clipboard.writeText(text).then(function () {
-            const button = document.getElementById('copy-lettre');
-            if (button) {
-                button.textContent = '✅ Copié';
-                setTimeout(function () { button.textContent = '📋 Copier'; }, 2000);
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('copy-lettre')?.addEventListener('click', function () {
+            const text = document.getElementById('lettre_texte')?.value || '';
+            if (!text) {
+                return;
             }
+            navigator.clipboard.writeText(text).then(function () {
+                const button = document.getElementById('copy-lettre');
+                if (button) {
+                    button.textContent = '✅ Copié';
+                    setTimeout(function () { button.textContent = '📋 Copier'; }, 2000);
+                }
+            });
         });
-    });
 
-    document.getElementById('print-lettre')?.addEventListener('click', function () {
-        window.print();
+        document.getElementById('print-lettre')?.addEventListener('click', function () {
+            window.print();
+        });
     });
 </script>
 {% endblock %}

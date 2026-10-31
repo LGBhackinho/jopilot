@@ -1,44 +1,145 @@
 {% extends 'base.html.twig' %}
 {% set active = 'cv' %}
 
-{% block title %}Analyse du CV — JobPilot{% endblock %}
+{% block title %}Mon CV — JobPilot{% endblock %}
+
+{% macro chips(items) %}
+    {% if items is iterable and items is not empty %}
+        <div class="chips">
+            {% for item in items %}
+                <span class="chip">{{ item is iterable ? item|json_encode : item }}</span>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% macro liste(items) %}
+    {% if items is iterable and items is not empty %}
+        <ul class="clean-list">
+            {% for item in items %}
+                <li>{{ item is iterable ? item|json_encode : item }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endmacro %}
+
+{% macro experiences(items) %}
+    {% for experience in items %}
+        {% if experience is iterable %}
+            <article class="exp-item">
+                <div class="exp-head">
+                    <h4>{{ experience.intitule|default(experience.poste|default('Expérience')) }}</h4>
+                    {% if experience.periode is defined and experience.periode %}
+                        <span class="exp-period">{{ experience.periode }}</span>
+                    {% endif %}
+                </div>
+                {% if experience.entreprise is defined and experience.entreprise %}
+                    <div class="exp-company">{{ experience.entreprise }}</div>
+                {% endif %}
+                {% set points = experience.points_cles|default(experience.points|default([])) %}
+                {% if points is iterable and points is not empty %}
+                    <ul>
+                        {% for point in points %}
+                            <li>{{ point is iterable ? point|json_encode : point }}</li>
+                        {% endfor %}
+                    </ul>
+                {% elseif points %}
+                    <p>{{ points }}</p>
+                {% endif %}
+            </article>
+        {% else %}
+            <article class="exp-item"><p>{{ experience }}</p></article>
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
 
 {% block styles %}
-.upload-zone {
-    display: block;
-    padding: 26px;
-    border: 1.5px dashed var(--border-strong);
-    border-radius: 14px;
-    background: var(--surface-3);
-    margin-bottom: 18px;
-    color: var(--text);
-    transition: border-color .15s;
+.cv-shell { --sticky-offset: 12px; }
+.cv-tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 5px; margin: 0 0 22px;
+    background: var(--surface-2); border-radius: 14px;
+    width: fit-content; max-width: 100%;
+    position: sticky; top: 10px; z-index: 20;
+    box-shadow: 0 6px 20px rgba(23, 28, 46, .06);
 }
-.upload-zone:hover { border-color: var(--accent); }
+.cv-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border: 0; border-radius: 10px;
+    background: transparent; color: var(--muted);
+    font: inherit; font-size: 13.5px; font-weight: 750; cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.cv-tab:hover { color: var(--accent); }
+.cv-tab.is-active { background: var(--surface); color: var(--accent); box-shadow: var(--shadow); }
+.cv-tab .tab-count {
+    font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 20px;
+    background: var(--accent-soft); color: var(--accent);
+}
+.cv-panel[hidden] { display: none !important; }
+.cv-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .cv-layout { grid-template-columns: 1fr; } }
+.cv-panel .card + .card { margin-top: 18px; }
+.upload-zone {
+    display: block; padding: 26px;
+    border: 1.5px dashed var(--border-strong); border-radius: 14px;
+    background: var(--surface-3); margin-bottom: 18px; color: var(--text);
+    transition: border-color .15s, background .15s;
+}
+.upload-zone:hover { border-color: var(--accent); background: var(--accent-soft); }
 .upload-zone strong { display: block; margin-bottom: 4px; }
 .upload-zone input[type=file] { width: 100%; padding: 8px 0; color: var(--text); }
-.results-head { margin: 34px 0 18px; }
+.cv-meta { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; line-height: 1.7; }
+.cv-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cv-delete { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cache-note {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 12px 14px; border-radius: 11px; margin-bottom: 18px;
+    background: var(--success-soft); color: var(--success);
+    font-size: 13px; line-height: 1.65;
+}
+.cache-note.is-fresh { background: var(--accent-soft); color: var(--accent); }
+.results-head { margin: 0 0 18px; display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.results-head h2 { margin: 0 0 4px; }
+.results-head p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .result-card { min-width: 0; }
 .result-card label { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; font-weight: 800; font-size: 15px; }
 .card-icon { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: var(--accent-soft); font-size: 19px; }
 .result-card .content { color: var(--text-2); line-height: 1.8; font-size: 14.5px; overflow-wrap: anywhere; }
-.result-card .content ul { padding-left: 20px; margin: 0; }
-.result-card .content li { padding: 3px 0; }
-.result-card .content pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; color: var(--text-2); }
+.result-card .content p { margin: 0 0 8px; }
+.result-card .content p:last-child { margin-bottom: 0; }
 .result-card.wide { grid-column: 1 / -1; }
-.empty { color: var(--muted); font-size: 14px; }
-.cv-meta { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; line-height: 1.7; }
-.cv-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.cv-delete { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.identity-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.identity-row span { font-size: 12.5px; padding: 4px 10px; border-radius: 20px; background: var(--surface-3); border: 1px solid var(--border); color: var(--text-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip { background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 700; padding: 5px 11px; border-radius: 20px; }
+.chip.success { background: var(--success-soft); color: var(--success); }
+.chip.info { background: var(--info-soft); color: var(--info); }
+.clean-list { margin: 0; padding-left: 18px; line-height: 1.8; }
+.clean-list li { padding: 2px 0; }
+.clean-list li::marker { color: var(--accent); }
+.exp-item { padding: 14px 16px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-3); }
+.exp-item + .exp-item { margin-top: 10px; }
+.exp-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.exp-head h4 { margin: 0; font-size: 15px; color: var(--text); line-height: 1.45; }
+.exp-period { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.exp-company { font-size: 13px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+.exp-item ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.75; }
+.exp-item ul li::marker { color: var(--accent); }
+.exp-item p { margin: 6px 0 0; }
+.offre-search-box { padding: 16px; border: 1px dashed var(--border-strong); border-radius: 14px; background: var(--surface-3); margin-bottom: 18px; }
+.offre-search-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 130px auto; gap: 12px; align-items: end; }
+@media (max-width: 860px) { .offre-search-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .offre-search-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .result-card.wide { grid-column: auto; } }
 {% endblock %}
 
 {% block body %}
 <div class="page-head">
-    <span class="eyebrow">✦ ANALYSE INTELLIGENTE</span>
-    <h1>Comprenez la valeur de votre CV.</h1>
-    <p class="muted">Importez votre PDF pour obtenir une synthèse de votre profil, vos points forts et des pistes d’amélioration.</p>
+    <span class="eyebrow">✦ MON CV</span>
+    <h1>Votre CV, vos analyses, vos offres.</h1>
+    <p class="muted">Importez votre CV, consultez son analyse et recherchez des offres sans quitter la page.</p>
 </div>
 
 {% if erreur %}
@@ -47,142 +148,371 @@
     </div>
 {% endif %}
 
-<section class="card" style="margin-bottom:18px">
-    <h2>Mon CV enregistré</h2>
-    {% if cv_profile.cv_text %}
-        <p class="cv-meta">
-            ✅ CV disponible{% if cv_profile.cv_filename %} · {{ cv_profile.cv_filename }}{% endif %}
-            {% if cv_profile.updated_at %} · mis à jour le {{ cv_profile.updated_at|date('d/m/Y à H:i') }}{% endif %}
-            <br>
-            Il est réutilisé automatiquement sur les écrans CV ↔ Offre, Entretien et Candidatures spontanées.
-        </p>
-    {% else %}
-        <p class="muted">Aucun CV enregistré pour le moment. Importez un PDF ou saisissez votre CV ci-dessous.</p>
-    {% endif %}
-
-    <form method="post">
-        <div class="form-group">
-            <label for="cv_text">Contenu du CV</label>
-            <textarea id="cv_text" name="cv_text" style="min-height:180px"
-                      placeholder="Collez ou modifiez ici le contenu de votre CV…">{{ cv_profile.cv_text }}</textarea>
-        </div>
-        <div class="cv-actions">
-            <button type="submit" class="btn btn-ghost" name="action" value="save">💾 {{ cv_profile.cv_text ? 'Enregistrer les modifications' : 'Enregistrer mon CV' }}</button>
-            <button type="submit" class="btn btn-primary" name="action" value="analyze">✨ Analyser ce CV</button>
-        </div>
-    </form>
-
-    {% if cv_profile.cv_text %}
-        <div class="cv-delete">
-            <form method="post" onsubmit="return confirm('Supprimer le CV enregistré ?')">
-                <input type="hidden" name="action" value="delete">
-                <button type="submit" class="btn btn-danger btn-sm">🗑️ Supprimer le CV enregistré</button>
-            </form>
-        </div>
-    {% endif %}
-</section>
-
-<section class="card">
-    <h2>{{ cv_profile.cv_text ? 'Remplacer mon CV par un PDF' : 'Importer mon CV' }}</h2>
-    <p class="muted">
-        Choisissez un CV au format PDF, de 5 Mo maximum.
-        {% if cv_profile.cv_text %}Il remplacera le CV enregistré après extraction.{% endif %}
-    </p>
-    <form id="cv-form"
-          action="{{ path('app_cv_analyser') }}"
-          method="post"
-          enctype="multipart/form-data">
-        <label class="upload-zone" for="cv">
-            <strong>📄 Sélectionner un fichier PDF</strong>
-            <input type="file" id="cv" name="cv" accept="application/pdf,.pdf" required>
-            <span class="form-help">PDF uniquement · 5 Mo maximum</span>
-        </label>
-        <button class="btn btn-primary" id="submit-button" type="submit">
-            ⬆️ {{ cv_profile.cv_text ? 'Remplacer et analyser' : 'Importer et analyser' }}
+<div class="cv-shell" data-default-tab="{{ active_tab }}">
+    <nav class="cv-tabs" role="tablist" aria-label="Sections du CV">
+        <button type="button" class="cv-tab {{ active_tab == 'cv' ? 'is-active' }}" data-tab="cv" role="tab" aria-selected="{{ active_tab == 'cv' ? 'true' : 'false' }}">📄 Mon CV</button>
+        <button type="button" class="cv-tab {{ active_tab == 'analyse' ? 'is-active' }}" data-tab="analyse" role="tab" aria-selected="{{ active_tab == 'analyse' ? 'true' : 'false' }}">
+            📊 Analyse IA
+            {% if resultat %}<span class="tab-count">à jour</span>{% endif %}
         </button>
-    </form>
-</section>
+        <button type="button" class="cv-tab {{ active_tab == 'offres' ? 'is-active' }}" data-tab="offres" role="tab" aria-selected="{{ active_tab == 'offres' ? 'true' : 'false' }}">
+            🔎 Offres
+            {% if recherche and recherche.offres %}<span class="tab-count">{{ recherche.offres|length }}</span>{% endif %}
+        </button>
+    </nav>
 
-{% if resultat %}
-    {% set labels = {
-        'resume': 'Résumé du profil',
-        'competences': 'Compétences',
-        'experiences': 'Expériences professionnelles',
-        'formations': 'Formations',
-        'langues': 'Langues',
-        'points_forts': 'Points forts',
-        'ameliorations': 'Pistes d’amélioration',
-        'metiers_suggeres': 'Métiers suggérés',
-        'ville': 'Ville'
-    } %}
-    {% set icons = {
-        'resume': '👤',
-        'competences': '⚡',
-        'experiences': '💼',
-        'formations': '🎓',
-        'langues': '🌍',
-        'points_forts': '⭐',
-        'ameliorations': '🛠️',
-        'metiers_suggeres': '🎯',
-        'ville': '📍'
-    } %}
+    {# ----------------------------- Onglet Mon CV ----------------------------- #}
+    <section class="cv-panel" data-panel="cv" role="tabpanel" {{ active_tab != 'cv' ? 'hidden' }}>
+        <div class="cv-layout">
+            <div>
+                <section class="card">
+                    <h2>{{ cv_profile.cv_text ? 'Mon CV enregistré' : 'Mon CV' }}</h2>
+                    {% if cv_profile.cv_text %}
+                        <p class="cv-meta">
+                            ✅ CV disponible{% if cv_profile.cv_filename %} · {{ cv_profile.cv_filename }}{% endif %}
+                            {% if cv_profile.updated_at %} · mis à jour le {{ cv_profile.updated_at|date('d/m/Y à H:i') }}{% endif %}
+                            <br>
+                            Il est réutilisé automatiquement sur les écrans CV ↔ Offre, Entretien et Candidatures spontanées.
+                        </p>
+                    {% else %}
+                        <p class="muted">Aucun CV enregistré pour le moment. Importez un PDF ou saisissez votre CV ci-dessous.</p>
+                    {% endif %}
 
-    <div class="results-head">
-        <span class="eyebrow">RAPPORT GÉNÉRÉ</span>
-        <h2>Les résultats de votre analyse</h2>
-        <p class="muted">Informations extraites et suggestions produites par l’IA. Vérifiez les résultats avant de les utiliser.</p>
-    </div>
+                    <form method="post">
+                        <div class="form-group">
+                            <label for="cv_text">Contenu du CV</label>
+                            <textarea id="cv_text" name="cv_text" style="min-height:260px"
+                                      placeholder="Collez ou modifiez ici le contenu de votre CV…">{{ cv_profile.cv_text }}</textarea>
+                        </div>
+                        <div class="cv-actions">
+                            <button type="submit" class="btn btn-ghost" name="action" value="save">
+                                💾 {{ cv_profile.cv_text ? 'Enregistrer les modifications' : 'Enregistrer mon CV' }}
+                            </button>
+                            <button type="submit" class="btn btn-primary" name="action" value="analyze"
+                                    data-ai-loading="Analyse de votre CV en cours…">
+                                ✨ Analyser ce CV
+                            </button>
+                        </div>
+                    </form>
 
-    <div class="grid">
-        {% for cle, label in labels %}
-            {% if resultat[cle] is defined and resultat[cle] is not empty %}
-                <article class="result-card card {{ cle in ['resume', 'experiences', 'ameliorations', 'metiers_suggeres'] ? 'wide' : '' }}">
-                    <label>
-                        <div class="card-icon">{{ icons[cle] }}</div>
-                        {{ label }}
-                    </label>
-                    <div class="content">
-                        {% set valeur = resultat[cle] %}
-                        {% if valeur is iterable %}
-                            <ul>
-                                {% for element in valeur %}
-                                    <li>
-                                        {% if element is iterable %}
-                                            <pre>{{ element|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
-                                        {% else %}
-                                            {{ element }}
-                                        {% endif %}
-                                    </li>
-                                {% endfor %}
-                            </ul>
+                    {% if cv_profile.cv_text %}
+                        <div class="cv-delete">
+                            <form method="post" onsubmit="return confirm('Supprimer le CV enregistré ?')">
+                                <input type="hidden" name="action" value="delete">
+                                <button type="submit" class="btn btn-danger btn-sm">🗑️ Supprimer le CV enregistré</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </section>
+            </div>
+
+            <div>
+                <section class="card">
+                    <h2>{{ cv_profile.cv_text ? 'Remplacer mon CV par un PDF' : 'Importer mon CV' }}</h2>
+                    <p class="muted" style="font-size:13px">
+                        Choisissez un CV au format PDF, de 5 Mo maximum.
+                        {% if cv_profile.cv_text %}Il remplacera le CV enregistré après extraction.{% endif %}
+                    </p>
+                    <form id="cv-form"
+                          action="{{ path('app_cv_analyser') }}"
+                          method="post"
+                          enctype="multipart/form-data"
+                          data-ai-loading="Extraction du PDF et analyse du CV en cours…">
+                        <label class="upload-zone" for="cv">
+                            <strong>📄 Sélectionner un fichier PDF</strong>
+                            <input type="file" id="cv" name="cv" accept="application/pdf,.pdf" required>
+                            <span class="form-help">PDF uniquement · 5 Mo maximum</span>
+                        </label>
+                        <button class="btn btn-primary" type="submit" data-ai-loading="Extraction du PDF et analyse du CV en cours…">
+                            ⬆️ {{ cv_profile.cv_text ? 'Remplacer et analyser' : 'Importer et analyser' }}
+                        </button>
+                    </form>
+                </section>
+
+                <section class="card">
+                    <h3 style="margin:0 0 8px;font-size:16px">💡 Comment sont utilisés vos résultats ?</h3>
+                    <p class="muted" style="font-size:13px;margin:0;line-height:1.75">
+                        Chaque analyse IA est enregistrée. Elle est réutilisée automatiquement tant que votre CV
+                        ne change pas : aucun nouvel appel n’est fait inutilement. Dès que vous importez un nouveau
+                        CV ou modifiez son contenu, une nouvelle analyse est proposée.
+                    </p>
+                </section>
+            </div>
+        </div>
+    </section>
+
+    {# ---------------------------- Onglet Analyse IA --------------------------- #}
+    <section class="cv-panel" data-panel="analyse" role="tabpanel" {{ active_tab != 'analyse' ? 'hidden' }}>
+        {% if analysis_outdated %}
+            <div class="alert alert-warning">
+                Votre CV a été modifié depuis la dernière analyse
+                {% if latest_analysis_at %}({{ latest_analysis_at|date('d/m/Y à H:i') }}){% endif %}.
+                Relancez l’analyse pour obtenir des résultats à jour.
+            </div>
+        {% endif %}
+
+        {% if resultat %}
+            {% set identite = resultat.identite|default({}) %}
+            {% set profil = resultat.profil|default(resultat.resume|default('')) %}
+            {% set competences = resultat.competences|default([]) %}
+            {% set technologies = resultat.technologies|default([]) %}
+            {% set experiences = resultat.experiences|default([]) %}
+            {% set formations = resultat.formations|default([]) %}
+            {% set langues = resultat.langues|default([]) %}
+            {% set qualites = resultat.qualites|default([]) %}
+            {% set metiers = resultat.metiers_suggeres|default([]) %}
+            {% set ats = resultat.mots_cles_ats|default([]) %}
+            {% set axes = resultat.axes_amelioration|default(resultat.ameliorations|default([])) %}
+            {% set pointsForts = resultat.points_forts|default([]) %}
+
+            <div class="results-head">
+                <div>
+                    <span class="eyebrow">RAPPORT GÉNÉRÉ</span>
+                    <h2 style="margin-top:14px">Les résultats de votre analyse</h2>
+                    <p>Informations extraites et suggestions produites par l’IA. Vérifiez les résultats avant de les utiliser.</p>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button type="button" class="btn btn-primary btn-sm" data-open-tab="offres">
+                        🔎 Voir les offres{% if recherche and recherche.offres %} ({{ recherche.offres|length }}){% endif %}
+                    </button>
+                    <form method="post" data-ai-loading="Nouvelle analyse de votre CV en cours…">
+                        <input type="hidden" name="action" value="analyze">
+                        <input type="hidden" name="force" value="1">
+                        <button type="submit" class="btn btn-ghost btn-sm" data-ai-loading="Nouvelle analyse de votre CV en cours…">
+                            🔄 Relancer l’analyse
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {% if analyse_at %}
+                <div class="cache-note {{ analyse_from_cache ? '' : 'is-fresh' }}">
+                    <span>{{ analyse_from_cache ? '💾' : '✨' }}</span>
+                    <div>
+                        {% if analyse_from_cache %}
+                            <strong>Analyse enregistrée réutilisée</strong> — générée le {{ analyse_at|date('d/m/Y à H:i') }}.
+                            Aucune nouvelle donnée détectée : l’IA n’a pas été rappelée.
                         {% else %}
-                            {{ valeur|nl2br }}
+                            <strong>Analyse générée</strong> le {{ analyse_at|date('d/m/Y à H:i') }} et enregistrée.
                         {% endif %}
                     </div>
-                </article>
+                </div>
             {% endif %}
-        {% endfor %}
-    </div>
 
-    {% if recherche is defined and recherche %}
-        {% include 'partials/offres.html.twig' %}
-    {% endif %}
-{% endif %}
+            <div class="grid">
+                {% if profil or identite %}
+                    <article class="result-card card wide">
+                        <label><span class="card-icon">👤</span> Profil</label>
+                        <div class="content">
+                            {% if profil %}<p>{{ profil|nl2br }}</p>{% endif %}
+                            {% if identite is iterable %}
+                                <div class="identity-row">
+                                    {% if identite.nom is defined and identite.nom %}<span>👤 {{ identite.prenom|default('') }} {{ identite.nom }}</span>{% endif %}
+                                    {% if identite.contact is defined and identite.contact %}<span>✉️ {{ identite.contact }}</span>{% endif %}
+                                    {% if identite.localisation is defined and identite.localisation %}<span>📍 {{ identite.localisation }}</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endif %}
+
+                {% if competences %}
+                    <article class="result-card card">
+                        <label><span class="card-icon">⚡</span> Compétences</label>
+                        <div class="content">{{ _self.chips(competences) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if technologies %}
+                    <article class="result-card card">
+                        <label><span class="card-icon">🧰</span> Technologies & outils</label>
+                        <div class="content">{{ _self.chips(technologies) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if experiences %}
+                    <article class="result-card card wide">
+                        <label><span class="card-icon">💼</span> Expériences professionnelles</label>
+                        <div class="content">{{ _self.experiences(experiences) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if formations %}
+                    <article class="result-card card">
+                        <label><span class="card-icon">🎓</span> Formations</label>
+                        <div class="content">{{ _self.liste(formations) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if langues or qualites %}
+                    <article class="result-card card">
+                        {% if langues %}
+                            <label><span class="card-icon">🌍</span> Langues</label>
+                            <div class="content" style="margin-bottom:16px">{{ _self.chips(langues) }}</div>
+                        {% endif %}
+                        {% if qualites %}
+                            <label><span class="card-icon">🤝</span> Qualités</label>
+                            <div class="content">{{ _self.chips(qualites) }}</div>
+                        {% endif %}
+                    </article>
+                {% endif %}
+
+                {% if metiers %}
+                    <article class="result-card card">
+                        <label><span class="card-icon">🎯</span> Métiers suggérés</label>
+                        <div class="content">{{ _self.liste(metiers) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if ats %}
+                    <article class="result-card card">
+                        <label><span class="card-icon">🔑</span> Mots-clés ATS</label>
+                        <div class="content">{{ _self.chips(ats) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if axes %}
+                    <article class="result-card card wide">
+                        <label><span class="card-icon">🛠️</span> Pistes d’amélioration</label>
+                        <div class="content">{{ _self.liste(axes) }}</div>
+                    </article>
+                {% endif %}
+
+                {% if pointsForts %}
+                    <article class="result-card card wide">
+                        <label><span class="card-icon">⭐</span> Points forts</label>
+                        <div class="content">{{ _self.liste(pointsForts) }}</div>
+                    </article>
+                {% endif %}
+            </div>
+        {% elseif cv_profile.cv_text %}
+            <div class="card empty">
+                <span class="empty-icon">📊</span>
+                Aucune analyse enregistrée pour ce CV.<br>
+                Lancez l’analyse pour obtenir votre profil, vos compétences et des pistes d’amélioration.
+                <div style="margin-top:18px">
+                    <form method="post">
+                        <input type="hidden" name="action" value="analyze">
+                        <button type="submit" class="btn btn-primary" data-ai-loading="Analyse de votre CV en cours…">
+                            ✨ Analyser mon CV
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% else %}
+            <div class="card empty">
+                <span class="empty-icon">📄</span>
+                Importez ou saisissez d’abord votre CV dans l’onglet <strong>Mon CV</strong>.
+            </div>
+        {% endif %}
+    </section>
+
+    {# ------------------------------ Onglet Offres ----------------------------- #}
+    <section class="cv-panel" data-panel="offres" role="tabpanel" {{ active_tab != 'offres' ? 'hidden' }}>
+        <section class="card">
+            <h2 style="font-size:20px">🔎 Rechercher des offres</h2>
+            <p class="muted" style="font-size:13px;margin-top:0">
+                Lancez une recherche à tout moment, même sans analyse préalable. La requête est préremplie avec
+                les métiers détectés dans votre CV lorsqu’une analyse existe.
+            </p>
+            <form method="get" action="{{ path('app_cv_analyser') }}" class="offre-search-box" data-ai-loading="Recherche des offres en cours…">
+                <input type="hidden" name="tab" value="offres">
+                <div class="offre-search-grid">
+                    <div class="form-group" style="margin:0">
+                        <label for="offres_q">Mots-clés / métier</label>
+                        <input type="text" id="offres_q" name="offres_q" value="{{ offre_query }}"
+                               placeholder="Ex : développeur Symfony, chef de projet…">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label for="offre_ville">Ville</label>
+                        <input type="text" id="offre_ville" name="ville" value="{{ offre_ville }}"
+                               placeholder="Ex : Lyon, Paris…">
+                    </div>
+                    <div class="form-group" style="margin:0">
+                        <label for="offre_rayon">Rayon</label>
+                        <select id="offre_rayon" name="rayon">
+                            {% for r in [10, 30, 50, 100] %}
+                                <option value="{{ r }}" {{ offre_rayon == r ? 'selected' }}>{{ r }} km</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" data-ai-loading="Recherche des offres en cours…">
+                        Rechercher
+                    </button>
+                </div>
+            </form>
+
+            {% if offre_liens and not recherche %}
+                <p class="muted" style="font-size:13px;margin:0 0 8px">
+                    Ou consultez directement les plateformes avec cette recherche :
+                </p>
+                <div class="link-chips" style="margin:0">
+                    {% for lien in offre_liens %}
+                        <a class="link-chip" href="{{ lien.url }}" target="_blank" rel="noopener noreferrer">{{ lien.name }} ⇗</a>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </section>
+
+        {% if recherche %}
+            {% include 'partials/offres.html.twig' with {'recherche': recherche, 'show_form': false} %}
+        {% else %}
+            <div class="card empty">
+                <span class="empty-icon">🧭</span>
+                Saisissez des mots-clés puis lancez la recherche pour afficher les offres.<br>
+                Les offres locales (France Travail) et à distance apparaîtront ici.
+            </div>
+        {% endif %}
+    </section>
+</div>
 {% endblock %}
 
 {% block javascripts %}
 {{ parent() }}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const form = document.getElementById('cv-form');
-        const button = document.getElementById('submit-button');
+        const shell = document.querySelector('.cv-shell');
+        if (!shell) return;
 
-        if (!form || !button) return;
+        const tabs = Array.from(shell.querySelectorAll('[data-tab]'));
+        const panels = Array.from(shell.querySelectorAll('[data-panel]'));
+        const valid = tabs.map(function (tab) { return tab.dataset.tab; });
 
-        form.addEventListener('submit', function () {
-            button.disabled = true;
-            button.textContent = 'Analyse en cours…';
+        function activate(name, updateUrl) {
+            if (valid.indexOf(name) === -1) name = 'cv';
+
+            tabs.forEach(function (tab) {
+                const active = tab.dataset.tab === name;
+                tab.classList.toggle('is-active', active);
+                tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+
+            panels.forEach(function (panel) {
+                panel.hidden = panel.dataset.panel !== name;
+            });
+
+            if (updateUrl && history.replaceState) {
+                const url = new URL(window.location.href);
+                if (name === 'cv') {
+                    url.searchParams.delete('tab');
+                } else {
+                    url.searchParams.set('tab', name);
+                }
+                history.replaceState(null, '', url.toString());
+            }
+        }
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () { activate(tab.dataset.tab, true); });
         });
+
+        shell.querySelectorAll('[data-open-tab]').forEach(function (button) {
+            button.addEventListener('click', function () { activate(button.dataset.openTab, true); });
+        });
+
+        const hashTab = (window.location.hash || '').replace('#', '');
+        const initial = valid.indexOf(hashTab) !== -1 ? hashTab : (shell.dataset.defaultTab || 'cv');
+        activate(initial, false);
     });
 </script>
 {% endblock %}

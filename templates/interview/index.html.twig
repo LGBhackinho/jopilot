@@ -44,7 +44,7 @@
 
 <div class="layout">
     <div>
-        <form class="card" method="post">
+        <form class="card" method="post" data-ai-loading="Génération des questions d’entretien en cours…">
             <div class="form-group">
                 <label for="offre">L’offre visée</label>
                 <textarea id="offre" name="offre" style="min-height:160px"
@@ -61,13 +61,31 @@
                 <textarea id="cv_text" name="cv_text" style="min-height:120px"
                           placeholder="Votre expérience, vos postes, vos technologies…">{{ cv_text }}</textarea>
             </div>
-            <button type="submit" class="btn btn-primary" name="action" value="questions">
+            <button type="submit" class="btn btn-primary" name="action" value="questions" data-ai-loading="Génération des questions d’entretien en cours…">
                 ✨ Générer les questions
             </button>
         </form>
 
         {% if feedback %}
             <div class="card" style="margin-top:20px">
+                {% if generated_at %}
+                    <div class="cache-note {{ from_cache ? '' : 'is-fresh' }}">
+                        <span>{{ from_cache ? '💾' : '✨' }}</span>
+                        <div>
+                            {% if from_cache %}
+                                <strong>Retour enregistré réutilisé</strong> — généré le {{ generated_at|date('d/m/Y à H:i') }}.
+                            {% else %}
+                                <strong>Retour généré</strong> le {{ generated_at|date('d/m/Y à H:i') }} et enregistré.
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+                {% if feedback.question %}
+                    <div class="result-block">
+                        <h3>Question travaillée</h3>
+                        <p style="margin:0;color:var(--text-2);line-height:1.7">{{ feedback.question }}</p>
+                    </div>
+                {% endif %}
                 <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px">
                     <span class="feedback-note">{{ feedback.evaluation.note|default('—') }}/10</span>
                     <div>
@@ -96,6 +114,13 @@
                         <div class="answer-box">{{ feedback.evaluation.reponse_amelioree }}</div>
                     </div>
                 {% endif %}
+
+                {% if feedback.evaluation.conseils is defined and feedback.evaluation.conseils %}
+                    <div class="result-block">
+                        <h3>🧭 Conseils immédiats</h3>
+                        <ul>{% for c in feedback.evaluation.conseils %}<li>{{ c }}</li>{% endfor %}</ul>
+                    </div>
+                {% endif %}
             </div>
         {% endif %}
     </div>
@@ -108,9 +133,32 @@
                 Collez une annonce et cliquez sur « Générer les questions ».
             </div>
         {% else %}
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
                 <h2 style="font-size:20px;margin:0">{{ questions|length }} questions prêtes</h2>
+                <form method="post">
+                    <input type="hidden" name="action" value="questions">
+                    <input type="hidden" name="force" value="1">
+                    <input type="hidden" name="offre" value="{{ offre }}">
+                    <input type="hidden" name="cv_text" value="{{ cv_text }}">
+                    <button type="submit" class="btn btn-ghost btn-sm" data-ai-loading="Nouvelle génération des questions en cours…">
+                        🔄 Régénérer
+                    </button>
+                </form>
             </div>
+
+            {% if generated_at %}
+                <div class="cache-note {{ from_cache ? '' : 'is-fresh' }}">
+                    <span>{{ from_cache ? '💾' : '✨' }}</span>
+                    <div>
+                        {% if from_cache %}
+                            <strong>Questions enregistrées réutilisées</strong> — générées le {{ generated_at|date('d/m/Y à H:i') }}.
+                            Aucune nouvelle donnée détectée : l’IA n’a pas été rappelée.
+                        {% else %}
+                            <strong>Questions générées</strong> le {{ generated_at|date('d/m/Y à H:i') }} et enregistrées.
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
 
             {% for q in questions %}
                 <article class="question-item">
@@ -126,19 +174,44 @@
                         <div class="detail" style="margin-top:5px"><b>💡 Piste :</b> {{ q.piste_reponse }}</div>
                     {% endif %}
 
-                    <form class="feedback-box" method="post">
+                    <form class="feedback-box" method="post" data-ai-loading="Évaluation de votre réponse en cours…">
                         <input type="hidden" name="action" value="feedback">
                         <input type="hidden" name="question" value="{{ q.question|default('') }}">
                         {% if offre %}<input type="hidden" name="offre" value="{{ offre }}">{% endif %}
+                        <input type="hidden" name="cv_text" value="{{ cv_text }}">
                         <div class="form-group" style="margin-bottom:10px">
                             <label for="reponse-{{ loop.index }}">Votre réponse d’entraînement</label>
                             <textarea id="reponse-{{ loop.index }}" name="reponse" style="min-height:100px"
                                       placeholder="Structurez votre réponse (par ex. avec la méthode STAR)."></textarea>
                         </div>
-                        <button type="submit" class="btn btn-ghost btn-sm">⚡ Obtenir un retour</button>
+                        <button type="submit" class="btn btn-ghost btn-sm" data-ai-loading="Évaluation de votre réponse en cours…">⚡ Obtenir un retour</button>
                     </form>
                 </article>
             {% endfor %}
+
+            {% if extras and (extras.questions_a_poser or extras.points_a_anticiper or extras.conseils_rapides) %}
+                <div class="card" style="margin-top:18px">
+                    <h2 style="font-size:18px;margin-top:0">🎒 À préparer en plus</h2>
+                    {% if extras.questions_a_poser %}
+                        <div class="result-block">
+                            <h3>Questions à poser au recruteur</h3>
+                            <ul>{% for item in extras.questions_a_poser %}<li>{{ item }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+                    {% if extras.points_a_anticiper %}
+                        <div class="result-block">
+                            <h3 style="color:var(--warn)">Points à anticiper</h3>
+                            <ul>{% for item in extras.points_a_anticiper %}<li>{{ item }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+                    {% if extras.conseils_rapides %}
+                        <div class="result-block">
+                            <h3 style="color:var(--success)">Conseils rapides</h3>
+                            <ul>{% for item in extras.conseils_rapides %}<li>{{ item }}</li>{% endfor %}</ul>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
         {% endif %}
     </div>
 </div>

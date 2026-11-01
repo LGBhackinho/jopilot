@@ -24,6 +24,14 @@ services:
             - '../src/Service/JobOffer/JobOfferProviderInterface.php'
         public: true
 
+    # Fournisseurs d'offres d'emploi : collectés par le tag et injectés dans
+    # JobOfferSearch, qui interroge toutes les sources configurées.
+    App\Service\JobOffer\AdzunaProvider:
+        tags: ['app.job_offer_provider']
+
+    App\Service\JobOffer\JoobleProvider:
+        tags: ['app.job_offer_provider']
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 

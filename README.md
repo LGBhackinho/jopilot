@@ -89,16 +89,37 @@ La recherche est composée de deux blocs indépendants, chacun avec son propre �
 
 | Source | Rôle | Configuration |
 | --- | --- | --- |
-| **Adzuna** (France) | Source principale : offres françaises avec lieu, salaire, contrat et lien direct | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` — clé gratuite sur [developer.adzuna.com](https://developer.adzuna.com) |
-| **Jooble** (France) | Secours automatique si Adzuna ne renvoie rien | `JOOBLE_API_KEY` — clé à créer sur [fr.jooble.org/api/about](https://fr.jooble.org/api/about) |
+| **Adzuna** (France) | Offres françaises avec lieu, salaire, contrat et lien direct | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` — clé gratuite sur [developer.adzuna.com](https://developer.adzuna.com) |
+| **Jooble** (France) | Offres françaises complémentaires (autres sites agrégés) | `JOOBLE_API_KEY` — clé à créer sur [fr.jooble.org/api/about](https://fr.jooble.org/api/about) |
 
-Si aucun résultat n’est trouvé, les liens directs vers Indeed, LinkedIn, Welcome to the Jungle, HelloWork, Google Jobs et France Travail restent disponibles.
+Toutes les sources **configurées** sont interrogées à chaque recherche, puis leurs
+résultats sont **fusionnés en alternance** (une offre Adzuna, une offre Jooble, etc.)
+et dédoublonnés par URL. Une source ne sert donc plus seulement de secours : elle
+apporte sa propre couverture, sans qu’une source prolifique écrase l’autre.
+Si aucun résultat n’est trouvé, les liens directs vers Indeed, LinkedIn, Welcome to the
+Jungle, HelloWork, Google Jobs et France Travail restent disponibles.
 
 ### Entreprises à démarcher
 
 Le bloc **« Entreprises à cibler en candidature spontanée »** utilise l’API officielle
 [recherche-entreprises.api.gouv.fr](https://recherche-entreprises.api.gouv.fr) (INSEE, INPI, DILA) :
 gratuite, sans clé, filtrée par activité et par département.
+
+Cette API ne cherche que sur le **nom** et l’**activité principale** des sociétés : une requête
+issue du CV (« Développeur Web Full Stack PHP Symfony ») ne correspond à aucun nom d’entreprise
+et renvoyait donc systématiquement zéro résultat. `ActivitySectorMapper` traduit désormais la
+recherche en **codes NAF** (nomenclature INSEE) et en **métiers précis** (plomberie, chaudronnerie,
+comptabilité, soins infirmiers…), puis `CompanyDirectoryProvider` interroge l’API du plus précis
+au plus large :
+
+1. métier précis reconnu (mot-clé d’activité + codes NAF dédiés) ;
+2. secteur d’activité (codes NAF) ;
+3. section NAF ;
+4. mots-clés de la requête (homonymes écartés) ;
+5. élargissement national si le département ne compte pas assez d’employeurs.
+
+Les entreprises sans salarié et les établissements non employeurs sont écartés ou classés en fin
+de liste. Si le métier n’est pas reconnu, l’interface l’indique au lieu d’afficher des homonymes.
 
 Chaque entreprise peut être ajoutée en un clic aux candidatures spontanées : l’application
 crée la fiche puis ouvre directement la génération de lettre à partir du CV.
@@ -113,7 +134,9 @@ crée la fiche puis ouvre directement la génération de lettre à partir du CV.
 
 Les résultats sont mis en cache 30 minutes dans `var/data/offers_cache.json`
 (5 minutes lorsqu’une source est en erreur, pour retenter plus vite). Cela protège
-les quotas : Adzuna autorise 250 appels par jour, Jooble 500 appels pour la durée de vie de la clé.
+les quotas : Adzuna autorise 250 appels par jour, Jooble 500 appels pour la durée de vie
+de la clé. Comme les deux sources sont désormais interrogées et fusionnées, une recherche
+coûte un appel par source — le cache évite de les répéter.
 
 ### Erreurs
 
@@ -142,7 +165,7 @@ L’application privilégie le provider configuré et bascule sur les autres pro
 - `src/Controller/` : contrôleurs HTTP ;
 - `src/Repository/` : accès aux fichiers JSON (`CvProfileRepository`, `CandidatureRepository`, `SpontaneousApplicationRepository`, `AiResultRepository`) ;
 - `src/Service/` : logique métier, intégration IA, recherche d’offres et agrégation du tableau de bord (`DashboardService`) ;
-- `src/Service/JobOffer/` : fournisseurs d’offres interchangeables (`AdzunaProvider`, `JoobleProvider`), annuaire d’entreprises (`CompanyDirectoryProvider`) et géocodage (`GeoCommuneResolver`) ;
+- `src/Service/JobOffer/` : fournisseurs d’offres interchangeables (`AdzunaProvider`, `JoobleProvider`, tagués `app.job_offer_provider`), annuaire d’entreprises (`CompanyDirectoryProvider`), traduction métier → codes NAF (`ActivitySectorMapper`) et géocodage (`GeoCommuneResolver`) ;
 - `src/Service/Ai/` : gestion multi-providers et clients IA ;
 - `templates/` : vues Twig ;
 - `var/data/` : données persistantes ;
@@ -159,6 +182,6 @@ symfony serve        # ou : php -S 127.0.0.1:8000 -t public
 ## Remarques
 
 - Les données locales ne sont pas versionnées : pensez à sauvegarder `var/data/`.
-- Les offres proviennent d’Adzuna (principal) et de Jooble (secours) : renseignez `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` et `JOOBLE_API_KEY` dans `.env.local`.
-- Les entreprises proviennent de l’annuaire officiel `recherche-entreprises.api.gouv.fr`, sans clé.
+- Les offres proviennent d’Adzuna **et** de Jooble (les deux sources configurées sont fusionnées) : renseignez `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` et `JOOBLE_API_KEY` dans `.env.local`.
+- Les entreprises proviennent de l’annuaire officiel `recherche-entreprises.api.gouv.fr`, sans clé, filtrées par métier/secteur (codes NAF) et par département.
 - Les identifiants `FRANCE_TRAVAIL_CLIENT_ID` / `FRANCE_TRAVAIL_CLIENT_SECRET` ne sont plus utilisés : l’API Offres d’emploi de France Travail n’est plus exposée, et La Bonne Boîte nécessite une habilitation manuelle.

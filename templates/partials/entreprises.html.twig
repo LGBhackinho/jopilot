@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    {% if recherche.entreprise_message and recherche.entreprises is empty %}
+    {% if recherche.entreprise_message %}
         <div class="alert alert-info" style="font-size:12.5px">{{ recherche.entreprise_message }}</div>
     {% endif %}
 

@@ -2,22 +2,21 @@
 
 namespace App\Service;
 
-use App\Service\JobOffer\AdzunaProvider;
 use App\Service\JobOffer\CompanyDirectoryProvider;
 use App\Service\JobOffer\GeoCommuneResolver;
 use App\Service\JobOffer\JobOfferProviderInterface;
-use App\Service\JobOffer\JoobleProvider;
 use App\Service\JobOffer\SearchQuery;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Orchestre la recherche d'offres et d'entreprises.
  *
- * Le service ne connaît aucun fournisseur en particulier : il demande à
- * Adzuna, puis bascule sur Jooble si besoin, et interroge l'annuaire des
- * entreprises. Chaque source est isolée : une panne n'empêche pas les autres
- * de s'afficher.
+ * Le service ne connaît aucun fournisseur en particulier : il interroge tous
+ * ceux qui sont configurés (Adzuna, Jooble…), fusionne leurs résultats et
+ * interroge l'annuaire des entreprises. Chaque source est isolée : une panne
+ * n'empêche pas les autres de s'afficher.
  */
 class JobOfferSearch
 {
@@ -38,9 +37,12 @@ class JobOfferSearch
 
     private Filesystem $filesystem;
 
+    /**
+     * @param iterable<JobOfferProviderInterface> $providers
+     */
     public function __construct(
-        private AdzunaProvider $adzuna,
-        private JoobleProvider $jooble,
+        #[AutowireIterator('app.job_offer_provider')]
+        private iterable $providers,
         private CompanyDirectoryProvider $companies,
         private GeoCommuneResolver $geo,
         #[Autowire('%kernel.project_dir%/var/data/offers_cache.json')]
@@ -147,36 +149,36 @@ class JobOfferSearch
             return $cached;
         }
 
-        $offres = [];
         $sources = [];
         $erreurs = [];
-        $sourceOffres = null;
+        $offresParSource = [];
+        $lignes = [];
 
-        // Adzuna d'abord : c'est la source la plus complète en France.
-        $adzunaStatus = $this->runProvider($this->adzuna, $searchQuery, $limit, $offres);
-        $sources[] = $adzunaStatus;
+        // Toutes les sources configurées sont interrogées, jamais l'une à la
+        // place de l'autre : chaque fournisseur apporte sa propre couverture
+        // (Adzuna agrège de grandes plateformes, Jooble d'autres sites).
+        foreach ($this->providers as $provider) {
+            $providerOffres = [];
+            $status = $this->runProvider($provider, $searchQuery, $limit, $providerOffres);
 
-        if ($adzunaStatus['state'] === 'error') {
-            $erreurs[] = $adzunaStatus['message'];
-        }
+            $sources[] = $status;
 
-        if ($offres !== []) {
-            $sourceOffres = $this->adzuna->label();
-        } else {
-            // Adzuna vide ou en panne : Jooble prend le relais.
-            $joobleOffres = [];
-            $joobleStatus = $this->runProvider($this->jooble, $searchQuery, $limit, $joobleOffres);
-            $sources[] = $joobleStatus;
+            if ($status['state'] === 'error') {
+                $erreurs[] = $status['message'];
+            }
 
-            if ($joobleStatus['state'] === 'ok' && $joobleOffres !== []) {
-                $offres = $joobleOffres;
-                $sourceOffres = $this->jooble->label();
-            } elseif ($joobleStatus['state'] === 'error') {
-                $erreurs[] = $joobleStatus['message'];
+            if ($status['state'] === 'ok' && $providerOffres !== []) {
+                $offresParSource[] = [
+                    'label' => $provider->label(),
+                    'offres' => $providerOffres,
+                ];
             }
         }
 
-        $offres = $this->dedupe($offres);
+        $offres = $this->merge($offresParSource, $limit);
+        $sourceOffres = $offresParSource === []
+            ? null
+            : implode(' + ', array_column($offresParSource, 'label'));
 
         $entreprises = [];
         $entrepriseSource = $this->companies->label();
@@ -189,7 +191,9 @@ class JobOfferSearch
                 6
             );
 
-            if ($entreprises === []) {
+            $entrepriseMessage = $this->companies->lastNotice();
+
+            if ($entreprises === [] && $entrepriseMessage === null) {
                 $entrepriseMessage = 'Aucune entreprise trouvée pour cette recherche.';
             }
         } catch (\Throwable $e) {
@@ -263,26 +267,92 @@ class JobOfferSearch
     }
 
     /**
-     * @param list<array<string, mixed>> $offres
+     * Fusionne les résultats des fournisseurs en alternance.
+     *
+     * L'alternance (une offre Adzuna, une offre Jooble, etc.) garantit que
+     * chaque source reste visible dans la liste, au lieu qu'une source
+     * prolifique écrase les autres.
+     *
+     * @param list<array{label: string, offres: list<array<string, mixed>>}> $parSource
      * @return list<array<string, mixed>>
      */
-    private function dedupe(array $offres): array
+    private function merge(array $parSource, int $limit): array
     {
-        $seen = [];
-        $unique = [];
+        $vues = [];
+        $fusion = [];
+        $index = 0;
+        $encore = true;
 
-        foreach ($offres as $offre) {
-            $url = (string) ($offre['url'] ?? '');
+        while ($encore && count($fusion) < $limit) {
+            $encore = false;
 
-            if ($url === '' || isset($seen[$url])) {
-                continue;
+            foreach ($parSource as $source) {
+                if (!isset($source['offres'][$index])) {
+                    continue;
+                }
+
+                $encore = true;
+                $offre = $source['offres'][$index];
+                $url = (string) ($offre['url'] ?? '');
+                $signature = $this->signature($offre);
+
+                if ($url === '' || isset($vues[$url])) {
+                    continue;
+                }
+
+                if ($signature !== '' && isset($vues[$signature])) {
+                    continue;
+                }
+
+                $vues[$url] = true;
+
+                if ($signature !== '') {
+                    $vues[$signature] = true;
+                }
+
+                $fusion[] = $offre;
+
+                if (count($fusion) >= $limit) {
+                    break;
+                }
             }
 
-            $seen[$url] = true;
-            $unique[] = $offre;
+            ++$index;
         }
 
-        return $unique;
+        return $fusion;
+    }
+
+    /**
+     * Empreinte « intitulé + entreprise ».
+     *
+     * Deux plateformes relayent souvent la même annonce avec deux URL
+     * distinctes : sans cette empreinte, la liste affiche des doublons.
+     *
+     * @param array<string, mixed> $offre
+     */
+    private function signature(array $offre): string
+    {
+        $titre = mb_strtolower(trim((string) ($offre['title'] ?? '')));
+        $entreprise = mb_strtolower(trim((string) ($offre['company'] ?? '')));
+
+        // « Développeur Angular (H/F) », « Développeur Angular F/H » et
+        // « Développeur Angular (IT) » désignent la même annonce.
+        $nettoyer = static function (string $valeur): string {
+            $valeur = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $valeur) ?? $valeur;
+            $valeur = preg_replace('/\b(f|h|hf|fh|it)\b/u', ' ', $valeur) ?? $valeur;
+
+            return trim(preg_replace('/\s+/u', ' ', $valeur) ?? $valeur);
+        };
+
+        $titre = $nettoyer($titre);
+        $entreprise = $nettoyer($entreprise);
+
+        if ($titre === '') {
+            return '';
+        }
+
+        return 'sig:' . $titre . '|' . $entreprise;
     }
 
     /**
@@ -311,6 +381,12 @@ class JobOfferSearch
 
     private function cacheKey(SearchQuery $query, int $limit): string
     {
+        $etats = [];
+
+        foreach ($this->providers as $provider) {
+            $etats[] = $provider->name() . ':' . ($provider->isConfigured() ? '1' : '0');
+        }
+
         return sha1(implode('|', [
             mb_strtolower($query->motsCles),
             mb_strtolower($query->ville),
@@ -320,8 +396,7 @@ class JobOfferSearch
             // L'état de configuration fait partie de la clé : dès qu'une clé API
             // est renseignée (ou retirée), les anciens résultats « non configuré »
             // mis en cache ne sont plus servis.
-            $this->adzuna->isConfigured() ? 'adzuna:1' : 'adzuna:0',
-            $this->jooble->isConfigured() ? 'jooble:1' : 'jooble:0',
+            implode(',', $etats),
         ]));
     }
 
